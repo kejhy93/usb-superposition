@@ -3,14 +3,29 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from . import names
 from .bos import parse_bos
 from .model import (
-    SCHEMA_VERSION, AltMode, BillboardMode, Cable, Identity, Interface, Issue,
-    Partner, PdCaps, Pdo, PowerContract, RootPort, State, Summary, TbDomain,
-    TbRouter, TypecPort, UsbDevice,
+    SCHEMA_VERSION,
+    AltMode,
+    BillboardMode,
+    Cable,
+    Identity,
+    Interface,
+    Issue,
+    Partner,
+    PdCaps,
+    Pdo,
+    PowerContract,
+    RootPort,
+    State,
+    Summary,
+    TbDomain,
+    TbRouter,
+    TypecPort,
+    UsbDevice,
 )
 from .sysfs import Sysfs
 
@@ -27,6 +42,7 @@ _ROOT_HUB_RE = re.compile(r"^usb(\d+)$")
 
 
 # ---------------------------------------------------------------- helpers
+
 
 def _int(s: str | None, base: int = 10) -> int | None:
     if s is None:
@@ -86,6 +102,7 @@ def _base(p: str | None) -> str | None:
 
 # ---------------------------------------------------------------- USB
 
+
 class _UsbCollector:
     def __init__(self, fs: Sysfs) -> None:
         self.fs = fs
@@ -125,9 +142,14 @@ class _UsbCollector:
                 controller=_controller(acpi),
                 pci=info["pci"],
                 acpi=acpi,
-                connect_type=next((port_info[m]["connect_type"] for m in members
-                                   if port_info[m]["connect_type"] not in (None, "not used")),
-                                  info["connect_type"]),
+                connect_type=next(
+                    (
+                        port_info[m]["connect_type"]
+                        for m in members
+                        if port_info[m]["connect_type"] not in (None, "not used")
+                    ),
+                    info["connect_type"],
+                ),
                 max_mbps=max((hub_speed.get(port_info[m]["bus"]) or 0) for m in members) or None,
             )
             for m in members:
@@ -135,15 +157,18 @@ class _UsbCollector:
             groups[rp.id] = rp
 
         # Devices, built parent-first so children can attach.
-        names_ = sorted((e for e in entries if _DEVICE_RE.match(e)),
-                        key=lambda n: (n.count("."), n))
+        names_ = sorted((e for e in entries if _DEVICE_RE.match(e)), key=lambda n: (n.count("."), n))
         built: dict[str, UsbDevice] = {}
         for n in names_:
             bus, _, path = n.partition("-")
             if "." in path:
                 parent_name = n.rsplit(".", 1)[0]
                 parent = built.get(parent_name)
-                upstream = min(filter(None, [parent.upstream_mbps, parent.speed_mbps]), default=None) if parent else None
+                upstream = (
+                    min(filter(None, [parent.upstream_mbps, parent.speed_mbps]), default=None)
+                    if parent
+                    else None
+                )
                 dev = self._device(n, upstream)
                 if parent:
                     parent.children.append(dev)
@@ -173,11 +198,13 @@ class _UsbCollector:
         interfaces = []
         for e in fs.listdir(d):
             if e.startswith(f"{n}:"):
-                interfaces.append(Interface(
-                    number=e.split(":", 1)[1],
-                    cls=names.class_name(_int(fs.read(f"{d}/{e}/bInterfaceClass"), 16)),
-                    driver=_base(fs.realpath(f"{d}/{e}/driver")),
-                ))
+                interfaces.append(
+                    Interface(
+                        number=e.split(":", 1)[1],
+                        cls=names.class_name(_int(fs.read(f"{d}/{e}/bInterfaceClass"), 16)),
+                        driver=_base(fs.realpath(f"{d}/{e}/driver")),
+                    )
+                )
 
         # What can it do?
         vnum = _float(version) or 0.0
@@ -195,15 +222,19 @@ class _UsbCollector:
         downgraded, reason = False, None
         if max_mbps and speed is not None and speed < max_mbps:
             downgraded = True
-            if speed <= 480 <= 5000 <= max_mbps:
-                reason = ("SuperSpeed device connected at USB 2 speed: the cable, port or a hub "
-                          "in between lacks SuperSpeed lanes")
+            if speed <= 480 and max_mbps >= 5000:
+                reason = (
+                    "SuperSpeed device connected at USB 2 speed: the cable, port or a hub "
+                    "in between lacks SuperSpeed lanes"
+                )
             elif upstream is not None and speed >= upstream:
                 reason = f"limited by upstream link ({names.short_speed(upstream)})"
             else:
-                reason = (f"negotiated {names.short_speed(speed)} although device and upstream "
-                          f"support {names.short_speed(min(max_mbps, upstream or max_mbps))} "
-                          "(cable?)")
+                reason = (
+                    f"negotiated {names.short_speed(speed)} although device and upstream "
+                    f"support {names.short_speed(min(max_mbps, upstream or max_mbps))} "
+                    "(cable?)"
+                )
 
         is_billboard = dclass == 0x11 or any(i.cls == "Billboard" for i in interfaces)
         prod_l = (product or "").lower()
@@ -221,19 +252,35 @@ class _UsbCollector:
 
         billboard = None
         if bos and bos.billboard is not None:
-            billboard = [BillboardMode(m.svid, names.svid_name(m.svid), m.mode, m.state)
-                         for m in bos.billboard]
+            billboard = [
+                BillboardMode(m.svid, names.svid_name(m.svid), m.mode, m.state) for m in bos.billboard
+            ]
 
         return UsbDevice(
-            name=n, vid=vid, pid=pid, manufacturer=manufacturer, product=product,
-            serial=fs.read(f"{d}/serial"), usb_version=version,
-            speed_mbps=speed, speed_label=names.speed_label(speed, rx or 1),
-            rx_lanes=rx, tx_lanes=tx, max_mbps=max_mbps, max_source=src,
-            upstream_mbps=upstream, downgraded=downgraded, downgrade_reason=reason,
-            device_class=names.class_name(dclass), interfaces=interfaces,
-            max_power_ma=_unit(fs.read(f"{d}/bMaxPower")), removable=removable,
-            kind=kind, internal=internal,
-            container_id=bos.container_id if bos else None, companion=None,
+            name=n,
+            vid=vid,
+            pid=pid,
+            manufacturer=manufacturer,
+            product=product,
+            serial=fs.read(f"{d}/serial"),
+            usb_version=version,
+            speed_mbps=speed,
+            speed_label=names.speed_label(speed, rx or 1),
+            rx_lanes=rx,
+            tx_lanes=tx,
+            max_mbps=max_mbps,
+            max_source=src,
+            upstream_mbps=upstream,
+            downgraded=downgraded,
+            downgrade_reason=reason,
+            device_class=names.class_name(dclass),
+            interfaces=interfaces,
+            max_power_ma=_unit(fs.read(f"{d}/bMaxPower")),
+            removable=removable,
+            kind=kind,
+            internal=internal,
+            container_id=bos.container_id if bos else None,
+            companion=None,
             billboard=billboard,
         )
 
@@ -283,8 +330,13 @@ def _root_port_id(acpi: list[str]) -> str | None:
 _UFP_TYPES = {1: "hub", 2: "peripheral", 3: "psd", 5: "alt_mode_adapter", 6: "vconn_powered_device"}
 _DFP_TYPES = {1: "hub", 2: "host", 3: "power_brick"}
 _CABLE_TYPES = {3: "passive_cable", 4: "active_cable"}
-_CABLE_SPEED = {0: "USB 2.0", 1: "USB 3.2 Gen1 (5 Gbps)", 2: "USB 3.2 / USB4 Gen2 (10/20 Gbps)",
-                3: "USB4 Gen3 (40 Gbps)", 4: "USB4 Gen4 (80 Gbps)"}
+_CABLE_SPEED = {
+    0: "USB 2.0",
+    1: "USB 3.2 Gen1 (5 Gbps)",
+    2: "USB 3.2 / USB4 Gen2 (10/20 Gbps)",
+    3: "USB4 Gen3 (40 Gbps)",
+    4: "USB4 Gen4 (80 Gbps)",
+}
 _CABLE_CURRENT = {0: 3000, 1: 3000, 2: 5000}
 _CABLE_VOLTAGE = {0: 20, 1: 30, 2: 40, 3: 50}
 
@@ -322,18 +374,24 @@ class _TypecCollector:
             cable = self._cable(p)
 
         return TypecPort(
-            id=p, index=idx,
-            data_role=data_role, data_roles=data_roles,
-            power_role=power_role, power_roles=power_roles,
+            id=p,
+            index=idx,
+            data_role=data_role,
+            data_roles=data_roles,
+            power_role=power_role,
+            power_roles=power_roles,
             power_operation_mode=fs.read(f"{d}/power_operation_mode"),
-            usb_capability=usb_cap, usb_capabilities=usb_caps,
+            usb_capability=usb_cap,
+            usb_capabilities=usb_caps,
             typec_revision=fs.read(f"{d}/usb_typec_revision"),
             pd_revision=fs.read(f"{d}/usb_power_delivery_revision"),
             orientation=orientation if orientation not in ("", "unknown") else None,
             vconn_source=_bool(fs.read(f"{d}/vconn_source")),
             supported_altmodes=self._altmodes(d, p),
             pd=self._pd(f"{d}/usb_power_delivery"),
-            partner=partner, cable=cable, power=power,
+            partner=partner,
+            cable=cable,
+            power=power,
         )
 
     def _ucsi_supplies(self) -> dict[tuple[str, int], str]:
@@ -355,9 +413,13 @@ class _TypecCollector:
         ma = ua // 1000 if ua is not None else None
         vmax = _int(fs.read(f"{d}/voltage_max"))
         return PowerContract(
-            supply=supply, online=online, status=fs.read(f"{d}/status"),
-            usb_type=usb_type, usb_types=usb_types,
-            voltage_mv=mv if online else None, current_ma=ma if online else None,
+            supply=supply,
+            online=online,
+            status=fs.read(f"{d}/status"),
+            usb_type=usb_type,
+            usb_types=usb_types,
+            voltage_mv=mv if online else None,
+            current_ma=ma if online else None,
             voltage_max_mv=vmax // 1000 if vmax is not None and online else None,
             watts=round(mv * ma / 1e6, 1) if online and mv and ma else None,
         )
@@ -421,11 +483,17 @@ class _TypecCollector:
                     v = self.fs.read(f"{a}/displayport/{f}")
                     if v is not None:
                         details[f] = v
-            out.append(AltMode(
-                svid=svid, name=names.svid_name(svid), mode=_int(self.fs.read(f"{a}/mode")),
-                vdo=vdo, active=_bool(active) if active is not None else None,
-                description=self.fs.read(f"{a}/description") or None, details=details,
-            ))
+            out.append(
+                AltMode(
+                    svid=svid,
+                    name=names.svid_name(svid),
+                    mode=_int(self.fs.read(f"{a}/mode")),
+                    vdo=vdo,
+                    active=_bool(active) if active is not None else None,
+                    description=self.fs.read(f"{a}/description") or None,
+                    details=details,
+                )
+            )
         return out
 
     def _identity(self, d: str, cable: bool) -> Identity | None:
@@ -434,8 +502,12 @@ class _TypecCollector:
             return None
         hdr = self.fs.read(f"{idd}/id_header")
         vdos = [v for i in (1, 2, 3) if (v := self.fs.read(f"{idd}/product_type_vdo{i}")) is not None]
-        ident = Identity(id_header=hdr, cert_stat=self.fs.read(f"{idd}/cert_stat"),
-                         product=self.fs.read(f"{idd}/product"), product_type_vdos=vdos)
+        ident = Identity(
+            id_header=hdr,
+            cert_stat=self.fs.read(f"{idd}/cert_stat"),
+            product=self.fs.read(f"{idd}/product"),
+            product_type_vdos=vdos,
+        )
         h = _int(hdr, 16) if hdr else None
         if not h:  # all-zero identity = not discovered (common under UCSI)
             return ident
@@ -455,7 +527,9 @@ class _TypecCollector:
         fs = self.fs
         return Partner(
             pd_supported=_bool(fs.read(f"{d}/supports_usb_power_delivery")),
-            pd_revision=(r if (r := fs.read(f"{d}/usb_power_delivery_revision")) not in (None, "0.0") else None),
+            pd_revision=(
+                r if (r := fs.read(f"{d}/usb_power_delivery_revision")) not in (None, "0.0") else None
+            ),
             accessory_mode=(a if (a := fs.read(f"{d}/accessory_mode")) not in (None, "none") else None),
             altmodes=self._altmodes(d, name),
             identity=self._identity(d, cable=False),
@@ -476,15 +550,24 @@ class _TypecCollector:
         for plug in fs.listdir(TYPEC):
             if plug.startswith(f"{p}-plug"):
                 altmodes += self._altmodes(f"{TYPEC}/{plug}", plug)
-        return Cable(type=fs.read(f"{d}/type"), plug_type=fs.read(f"{d}/plug_type"),
-                     identity=ident, altmodes=altmodes, usb_speed=speed,
-                     current_ma=cur, max_voltage_v=volt)
+        return Cable(
+            type=fs.read(f"{d}/type"),
+            plug_type=fs.read(f"{d}/plug_type"),
+            identity=ident,
+            altmodes=altmodes,
+            usb_speed=speed,
+            current_ma=cur,
+            max_voltage_v=volt,
+        )
 
 
 def _decode_dp_vdo(vdo: int | None) -> dict[str, object]:
     if not vdo:
         return {}
-    pins = lambda b: [chr(ord("A") + i) for i in range(8) if b & (1 << i)]  # noqa: E731
+
+    def pins(b: int) -> list[str]:
+        return [chr(ord("A") + i) for i in range(8) if b & (1 << i)]
+
     caps = {1: "UFP_D", 2: "DFP_D", 3: "UFP_D+DFP_D"}.get(vdo & 0x3)
     sig = []
     if vdo & (1 << 2):
@@ -503,6 +586,7 @@ def _decode_dp_vdo(vdo: int | None) -> dict[str, object]:
 
 # ---------------------------------------------------------------- Thunderbolt / USB4
 
+
 def _collect_thunderbolt(fs: Sysfs) -> list[TbDomain]:
     entries = fs.listdir(TB)
     domains = []
@@ -520,28 +604,35 @@ def _collect_thunderbolt(fs: Sysfs) -> list[TbDomain]:
             for sub in fs.listdir(rd):
                 if sub.startswith("usb4_port"):
                     ports[sub] = fs.read(f"{rd}/{sub}/link") or "unknown"
-            routers.append(TbRouter(
-                id=r,
-                vendor=fs.read(f"{rd}/vendor_name") or None,
-                device=fs.read(f"{rd}/device_name") or None,
-                generation=_int(fs.read(f"{rd}/generation")),
-                rx_speed=fs.read(f"{rd}/rx_speed") or None,
-                rx_lanes=_int(fs.read(f"{rd}/rx_lanes")),
-                tx_speed=fs.read(f"{rd}/tx_speed") or None,
-                tx_lanes=_int(fs.read(f"{rd}/tx_lanes")),
-                authorized=_bool(fs.read(f"{rd}/authorized")),
-                usb4_ports=ports,
-            ))
+            routers.append(
+                TbRouter(
+                    id=r,
+                    vendor=fs.read(f"{rd}/vendor_name") or None,
+                    device=fs.read(f"{rd}/device_name") or None,
+                    generation=_int(fs.read(f"{rd}/generation")),
+                    rx_speed=fs.read(f"{rd}/rx_speed") or None,
+                    rx_lanes=_int(fs.read(f"{rd}/rx_lanes")),
+                    tx_speed=fs.read(f"{rd}/tx_speed") or None,
+                    tx_lanes=_int(fs.read(f"{rd}/tx_lanes")),
+                    authorized=_bool(fs.read(f"{rd}/authorized")),
+                    usb4_ports=ports,
+                )
+            )
         real = fs.realpath(d)
-        domains.append(TbDomain(
-            id=e, pci=_base(_parent_pci(real)), security=fs.read(f"{d}/security"),
-            iommu_dma_protection=_bool(fs.read(f"{d}/iommu_dma_protection")),
-            routers=routers,
-        ))
+        domains.append(
+            TbDomain(
+                id=e,
+                pci=_base(_parent_pci(real)),
+                security=fs.read(f"{d}/security"),
+                iommu_dma_protection=_bool(fs.read(f"{d}/iommu_dma_protection")),
+                routers=routers,
+            )
+        )
     return domains
 
 
 # ---------------------------------------------------------------- issues
+
 
 def _walk(devs: list[UsbDevice]):
     for d in devs:
@@ -556,30 +647,43 @@ def _issues(typec: list[TypecPort], roots: list[RootPort]) -> list[Issue]:
         if d.downgraded and d.downgrade_reason:
             fallback = (d.speed_mbps or 0) <= 480
             upstream_only = d.downgrade_reason.startswith("limited by upstream")
-            out.append(Issue(
-                severity="info" if upstream_only else "warning",
-                kind="usb_fallback" if fallback else ("usb_upstream_limited" if upstream_only else "usb_slow_link"),
-                message=f"{label}: {names.short_speed(d.speed_mbps)} of {names.short_speed(d.max_mbps)} "
-                        f"— {d.downgrade_reason}",
-                ref=d.name,
-            ))
+            out.append(
+                Issue(
+                    severity="info" if upstream_only else "warning",
+                    kind="usb_fallback"
+                    if fallback
+                    else ("usb_upstream_limited" if upstream_only else "usb_slow_link"),
+                    message=f"{label}: {names.short_speed(d.speed_mbps)} of {names.short_speed(d.max_mbps)} "
+                    f"— {d.downgrade_reason}",
+                    ref=d.name,
+                )
+            )
         for m in d.billboard or []:
             if m.state in ("failed", "error"):
-                out.append(Issue("warning", "altmode_failed",
-                                 f"{label}: {m.name} alternate mode {m.state}", d.name))
+                out.append(
+                    Issue("warning", "altmode_failed", f"{label}: {m.name} alternate mode {m.state}", d.name)
+                )
     for p in typec:
         pw = p.power
         if pw and pw.online and p.power_role == "sink":
             if pw.usb_type not in ("PD", "PD_PPS"):
-                out.append(Issue("warning", "charger_not_pd",
-                                 f"{p.id}: charging without USB PD ({pw.usb_type}, {pw.watts} W)", p.id))
+                out.append(
+                    Issue(
+                        "warning",
+                        "charger_not_pd",
+                        f"{p.id}: charging without USB PD ({pw.usb_type}, {pw.watts} W)",
+                        p.id,
+                    )
+                )
             elif pw.watts is not None and pw.watts < LOW_CHARGER_W:
-                out.append(Issue("warning", "charger_low",
-                                 f"{p.id}: charger negotiated only {pw.watts:g} W", p.id))
+                out.append(
+                    Issue("warning", "charger_low", f"{p.id}: charger negotiated only {pw.watts:g} W", p.id)
+                )
     return out
 
 
 # ---------------------------------------------------------------- entry point
+
 
 def collect(fs: Sysfs | None = None, now: datetime | None = None) -> State:
     fs = fs or Sysfs()
@@ -589,12 +693,16 @@ def collect(fs: Sysfs | None = None, now: datetime | None = None) -> State:
     issues = _issues(typec, roots)
 
     charging = next((p for p in typec if p.power and p.power.online and p.power_role == "sink"), None)
-    external = sum(1 for rp in roots for d in _walk(rp.devices)
-                   if not d.internal and d.kind not in ("hub", "billboard"))
+    external = sum(
+        1 for rp in roots for d in _walk(rp.devices) if not d.internal and d.kind not in ("hub", "billboard")
+    )
     return State(
         schema=SCHEMA_VERSION,
-        timestamp=(now or datetime.now(timezone.utc)).isoformat(timespec="seconds"),
-        typec_ports=typec, root_ports=roots, thunderbolt=tb, issues=issues,
+        timestamp=(now or datetime.now(UTC)).isoformat(timespec="seconds"),
+        typec_ports=typec,
+        root_ports=roots,
+        thunderbolt=tb,
+        issues=issues,
         summary=Summary(
             charging_w=charging.power.watts if charging and charging.power else None,
             charging_port=charging.id if charging else None,

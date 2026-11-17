@@ -16,12 +16,23 @@ class _C:
     def _w(self, code: str, s: str) -> str:
         return f"\033[{code}m{s}\033[0m" if self.on else s
 
-    def bold(self, s): return self._w("1", s)
-    def dim(self, s): return self._w("2", s)
-    def red(self, s): return self._w("31", s)
-    def green(self, s): return self._w("32", s)
-    def yellow(self, s): return self._w("33", s)
-    def cyan(self, s): return self._w("36", s)
+    def bold(self, s):
+        return self._w("1", s)
+
+    def dim(self, s):
+        return self._w("2", s)
+
+    def red(self, s):
+        return self._w("31", s)
+
+    def green(self, s):
+        return self._w("32", s)
+
+    def yellow(self, s):
+        return self._w("33", s)
+
+    def cyan(self, s):
+        return self._w("36", s)
 
 
 def use_color(stream=sys.stdout) -> bool:
@@ -53,8 +64,10 @@ def render(state: State, show_internal: bool = False, color: bool = False) -> st
     if s.charging_w is not None:
         port = next(p for p in state.typec_ports if p.id == s.charging_port)
         pw = port.power
-        out.append(c.bold(c.green(f"⚡ Charging {s.charging_w:g} W")) +
-                   f" via {port.id} ({pw.voltage_mv / 1000:g} V × {pw.current_ma / 1000:g} A, {pw.usb_type})")
+        out.append(
+            c.bold(c.green(f"⚡ Charging {s.charging_w:g} W"))
+            + f" via {port.id} ({pw.voltage_mv / 1000:g} V × {pw.current_ma / 1000:g} A, {pw.usb_type})"
+        )
     else:
         out.append(c.dim("⚡ Not charging over USB-C"))
     out.append(f"{s.external_devices} external device(s), {s.warnings} warning(s)")
@@ -63,6 +76,8 @@ def render(state: State, show_internal: bool = False, color: bool = False) -> st
     out.append(c.bold("USB-C ports"))
     for p in state.typec_ports:
         out.extend(_typec(p, c))
+    if not state.typec_ports:
+        out.append(c.dim("  (none found)"))
     out.append("")
 
     out.append(c.bold("USB"))
@@ -76,10 +91,14 @@ def render(state: State, show_internal: bool = False, color: bool = False) -> st
         devs = [r for r in dom.routers if not r.id.endswith("-0")]
         if devs or show_internal:
             out.append("")
-            out.append(c.bold(f"USB4 {dom.id}") + c.dim(f"  security={dom.security} links: {', '.join(links)}"))
+            out.append(
+                c.bold(f"USB4 {dom.id}") + c.dim(f"  security={dom.security} links: {', '.join(links)}")
+            )
             for r in devs:
-                out.append(f"  {r.vendor or '?'} {r.device or ''}  gen{r.generation} "
-                           f"rx {r.rx_speed}×{r.rx_lanes} tx {r.tx_speed}×{r.tx_lanes}")
+                out.append(
+                    f"  {r.vendor or '?'} {r.device or ''}  gen{r.generation} "
+                    f"rx {r.rx_speed}×{r.rx_lanes} tx {r.tx_speed}×{r.tx_lanes}"
+                )
 
     if state.issues:
         out.append("")
@@ -99,15 +118,19 @@ def _typec(p: TypecPort, c: _C) -> list[str]:
     lines = [head]
     pw = p.power
     if pw and pw.online and pw.watts:
-        lines.append(f"      power: {c.green(f'{pw.watts:g} W')} contract "
-                     f"({pw.voltage_mv / 1000:g} V × {pw.current_ma / 1000:g} A, {pw.usb_type})")
+        lines.append(
+            f"      power: {c.green(f'{pw.watts:g} W')} contract "
+            f"({pw.voltage_mv / 1000:g} V × {pw.current_ma / 1000:g} A, {pw.usb_type})"
+        )
     if pt.pd and pt.pd.source:
-        lines.append(f"      partner offers: " + " · ".join(fmt_pdo(x) for x in pt.pd.source))
+        lines.append("      partner offers: " + " · ".join(fmt_pdo(x) for x in pt.pd.source))
     if pt.pd and pt.pd.sink:
-        lines.append(f"      partner wants:  " + " · ".join(fmt_pdo(x) for x in pt.pd.sink))
+        lines.append("      partner wants:  " + " · ".join(fmt_pdo(x) for x in pt.pd.sink))
     if pt.altmodes:
-        modes = ", ".join(f"{a.name}" + ("" if a.active is None else (c.green(" ●") if a.active else c.dim(" ○")))
-                          for a in pt.altmodes)
+        modes = ", ".join(
+            f"{a.name}" + ("" if a.active is None else (c.green(" ●") if a.active else c.dim(" ○")))
+            for a in pt.altmodes
+        )
         lines.append(f"      alt modes: {modes}" + c.dim("  (● active ○ inactive)"))
     if pt.accessory_mode:
         lines.append(f"      accessory: {pt.accessory_mode}")
@@ -117,9 +140,16 @@ def _typec(p: TypecPort, c: _C) -> list[str]:
         lines.append(c.dim("      partner connected (no PD, no alt modes reported)"))
     cab = p.cable
     if cab:
-        bits = [x for x in (cab.type, cab.usb_speed,
-                            f"{cab.current_ma / 1000:g} A" if cab.current_ma else None,
-                            f"{cab.max_voltage_v} V" if cab.max_voltage_v else None) if x]
+        bits = [
+            x
+            for x in (
+                cab.type,
+                cab.usb_speed,
+                f"{cab.current_ma / 1000:g} A" if cab.current_ma else None,
+                f"{cab.max_voltage_v} V" if cab.max_voltage_v else None,
+            )
+            if x
+        ]
         lines.append(f"      cable: {', '.join(bits) or 'no e-marker data'}")
     return lines
 

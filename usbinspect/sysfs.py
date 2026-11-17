@@ -107,7 +107,7 @@ class FixtureSysfs(Sysfs):
         self.data = data
 
     @classmethod
-    def load(cls, path: str | Path) -> "FixtureSysfs":
+    def load(cls, path: str | Path) -> FixtureSysfs:
         return cls(json.loads(Path(path).read_text()))
 
     def read(self, path):

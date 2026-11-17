@@ -15,7 +15,7 @@ dependencies = []  # the collector is stdlib-only
 [project.optional-dependencies]
 tui = ["textual>=0.80"]
 daemon = ["pyudev>=0.24"]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff>=0.15", "build>=1.2"]
 
 [project.scripts]
 usbinspect = "usbinspect.cli:main"
@@ -28,3 +28,11 @@ include = ["usbinspect*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "PLR0133"]
+ignore = ["E501", "RUF001", "RUF003"]  # line length is the formatter's job; ×, ·, – are intentional

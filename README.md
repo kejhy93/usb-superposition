@@ -1,5 +1,7 @@
 # usb-superposition
 
+[![CI](https://github.com/kejhy93/usb-superposition/actions/workflows/ci.yml/badge.svg)](https://github.com/kejhy93/usb-superposition/actions/workflows/ci.yml)
+
 > A USB plug is in a superposition of "wrong way up" until observed. This tool observes
 > the rest: what's connected, how it's connected, and what it *could* have negotiated.
 
@@ -61,8 +63,21 @@ charger without PD, charger under 60 W, alt mode failed.
 ## Development
 
 ```sh
-python3 -m pytest
+python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+.venv/bin/pytest
+.venv/bin/ruff check . && .venv/bin/ruff format --check .
 ```
+
+CI (GitHub Actions) runs ruff, then pytest on Python 3.11–3.14, then builds the
+sdist and wheel. Every run also renders the recorded Framework 16 snapshot and the
+runner's own `/sys`.
+
+### Releasing
+
+1. Bump `__version__` in `usbinspect/__init__.py` and commit.
+2. `git tag v0.2.0 && git push origin v0.2.0`
+3. The Release workflow checks that the tag matches the version, runs the checks, and
+   publishes a GitHub release with the sdist and wheel attached.
 
 ## License
 

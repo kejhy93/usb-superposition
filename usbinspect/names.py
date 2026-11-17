@@ -8,12 +8,28 @@ from pathlib import Path
 USB_IDS_PATHS = ("/usr/share/hwdata/usb.ids", "/usr/share/misc/usb.ids", "/usr/share/usb.ids")
 
 USB_CLASSES = {
-    0x00: "Per-interface", 0x01: "Audio", 0x02: "Communications", 0x03: "HID",
-    0x05: "Physical", 0x06: "Imaging", 0x07: "Printer", 0x08: "Mass Storage",
-    0x09: "Hub", 0x0A: "CDC Data", 0x0B: "Smart Card", 0x0D: "Content Security",
-    0x0E: "Video", 0x0F: "Healthcare", 0x10: "Audio/Video", 0x11: "Billboard",
-    0x12: "USB-C Bridge", 0xDC: "Diagnostic", 0xE0: "Wireless", 0xEF: "Miscellaneous",
-    0xFE: "Application Specific", 0xFF: "Vendor Specific",
+    0x00: "Per-interface",
+    0x01: "Audio",
+    0x02: "Communications",
+    0x03: "HID",
+    0x05: "Physical",
+    0x06: "Imaging",
+    0x07: "Printer",
+    0x08: "Mass Storage",
+    0x09: "Hub",
+    0x0A: "CDC Data",
+    0x0B: "Smart Card",
+    0x0D: "Content Security",
+    0x0E: "Video",
+    0x0F: "Healthcare",
+    0x10: "Audio/Video",
+    0x11: "Billboard",
+    0x12: "USB-C Bridge",
+    0xDC: "Diagnostic",
+    0xE0: "Wireless",
+    0xEF: "Miscellaneous",
+    0xFE: "Application Specific",
+    0xFF: "Vendor Specific",
 }
 
 SVIDS = {

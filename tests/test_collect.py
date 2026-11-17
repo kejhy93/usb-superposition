@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -9,7 +9,7 @@ from usbinspect.render import render
 from usbinspect.sysfs import FixtureSysfs
 
 FIXTURE = Path(__file__).parent / "fixtures" / "fw16-charger-dock-hdmi.json"
-NOW = datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 11, 17, 12, 0, tzinfo=UTC)
 USB = "/sys/bus/usb/devices"
 PSY = "/sys/class/power_supply/ucsi-source-psy-USBC000:001"
 
@@ -25,6 +25,7 @@ def devices(state):
         for d in ds:
             yield d
             yield from walk(d.children)
+
     return {d.name: d for rp in state.root_ports for d in walk(rp.devices)}
 
 
@@ -76,10 +77,10 @@ def test_usb3_hub_halves_are_companions_not_downgrades(state):
 
 def test_internal_vs_external(state):
     d = devices(state)
-    assert d["1-4.2"].internal and d["1-4.2"].kind == "input_module"   # keyboard
-    assert d["1-4.1"].internal                                       # fingerprint
-    assert d["1-5"].internal                                         # wifi/bt
-    assert not d["1-2.1"].internal                                   # QuadCast
+    assert d["1-4.2"].internal and d["1-4.2"].kind == "input_module"  # keyboard
+    assert d["1-4.1"].internal  # fingerprint
+    assert d["1-5"].internal  # wifi/bt
+    assert not d["1-2.1"].internal  # QuadCast
     assert d["7-1"].kind == "expansion_card" and not d["7-1"].internal
     assert state.summary.external_devices == 4
 
@@ -111,6 +112,7 @@ def test_json_serialisable(state):
 
 # ---- simulated problems -------------------------------------------------
 
+
 def test_superspeed_device_on_usb2_link_warns():
     s = load(**{f"read:{USB}/2-1/speed": "480"})
     lan = devices(s)["2-1"]
@@ -127,9 +129,13 @@ def test_gen2_device_at_gen1_warns_slow_link():
 
 
 def test_non_pd_charger_warns():
-    s = load(**{f"read:{PSY}/usb_type": "[C] PD PD_PPS",
-                f"read:{PSY}/voltage_now": "5000000",
-                f"read:{PSY}/current_max": "3000000"})
+    s = load(
+        **{
+            f"read:{PSY}/usb_type": "[C] PD PD_PPS",
+            f"read:{PSY}/voltage_now": "5000000",
+            f"read:{PSY}/current_max": "3000000",
+        }
+    )
     assert s.summary.charging_w == 15.0
     assert [i.kind for i in s.issues] == ["charger_not_pd"]
 
@@ -142,6 +148,7 @@ def test_low_pd_charger_warns():
 
 def test_failed_altmode_warns():
     import base64
+
     key = f"read_bytes:{USB}/5-1.5/bos_descriptors"
     raw = bytearray(base64.b64decode(json.loads(FIXTURE.read_text())[key]))
     raw[5 + 8] = 0x02
@@ -150,6 +157,7 @@ def test_failed_altmode_warns():
 
 
 # ---- rendering ----------------------------------------------------------
+
 
 def test_render_hides_internal_by_default(state):
     text = render(state)

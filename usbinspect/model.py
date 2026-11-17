@@ -25,42 +25,42 @@ class BillboardMode:
 
 @dataclass
 class UsbDevice:
-    name: str                      # sysfs name, e.g. "1-2.1"
+    name: str  # sysfs name, e.g. "1-2.1"
     vid: str | None
     pid: str | None
     manufacturer: str | None
     product: str | None
     serial: str | None
-    usb_version: str | None        # bcdUSB, e.g. "3.20"
-    speed_mbps: float | None       # negotiated
+    usb_version: str | None  # bcdUSB, e.g. "3.20"
+    speed_mbps: float | None  # negotiated
     speed_label: str
     rx_lanes: int | None
     tx_lanes: int | None
-    max_mbps: int | None           # best the device advertises (per lane)
-    max_source: str                # "bos" | "bcdUSB" | "unknown"
-    upstream_mbps: float | None    # slowest link between this device and the host
+    max_mbps: int | None  # best the device advertises (per lane)
+    max_source: str  # "bos" | "bcdUSB" | "unknown"
+    upstream_mbps: float | None  # slowest link between this device and the host
     downgraded: bool
     downgrade_reason: str | None
     device_class: str | None
     interfaces: list[Interface]
     max_power_ma: int | None
-    removable: str | None          # kernel's view: fixed | removable | unknown
-    kind: str                      # hub | device | input_module | expansion_card | billboard
+    removable: str | None  # kernel's view: fixed | removable | unknown
+    kind: str  # hub | device | input_module | expansion_card | billboard
     internal: bool
-    container_id: str | None       # same value = same physical device (USB2+USB3 halves)
-    companion: str | None          # sysfs name of the other half of the same physical device
+    container_id: str | None  # same value = same physical device (USB2+USB3 halves)
+    companion: str | None  # sysfs name of the other half of the same physical device
     billboard: list[BillboardMode] | None
-    children: list["UsbDevice"] = field(default_factory=list)
+    children: list[UsbDevice] = field(default_factory=list)
 
 
 @dataclass
 class RootPort:
-    id: str                        # e.g. "XHC0.PRT1+PRT6"
-    ports: list[str]               # kernel port names, e.g. ["usb1-port1", "usb2-port1"]
-    controller: str | None         # e.g. "XHC0"
+    id: str  # e.g. "XHC0.PRT1+PRT6"
+    ports: list[str]  # kernel port names, e.g. ["usb1-port1", "usb2-port1"]
+    controller: str | None  # e.g. "XHC0"
     pci: str | None
     acpi: list[str]
-    connect_type: str | None       # hotplug | hardwired | not used
+    connect_type: str | None  # hotplug | hardwired | not used
     max_mbps: float | None
     devices: list[UsbDevice] = field(default_factory=list)
 
@@ -68,7 +68,7 @@ class RootPort:
 @dataclass
 class Pdo:
     index: int
-    type: str                      # fixed_supply | variable_supply | battery | programmable_supply ...
+    type: str  # fixed_supply | variable_supply | battery | programmable_supply ...
     voltage_mv: int | None = None
     min_voltage_mv: int | None = None
     max_voltage_mv: int | None = None
@@ -80,7 +80,7 @@ class Pdo:
 
 @dataclass
 class PdCaps:
-    name: str                      # pdN
+    name: str  # pdN
     revision: str | None
     source: list[Pdo]
     sink: list[Pdo]
@@ -115,11 +115,11 @@ class Identity:
 
 @dataclass
 class Cable:
-    type: str | None               # passive | active
+    type: str | None  # passive | active
     plug_type: str | None
     identity: Identity | None
     altmodes: list[AltMode]
-    usb_speed: str | None          # decoded from e-marker
+    usb_speed: str | None  # decoded from e-marker
     current_ma: int | None
     max_voltage_v: int | None
 
@@ -139,7 +139,7 @@ class PowerContract:
     supply: str
     online: bool
     status: str | None
-    usb_type: str | None           # active type, e.g. "PD"
+    usb_type: str | None  # active type, e.g. "PD"
     usb_types: list[str]
     voltage_mv: int | None
     current_ma: int | None
@@ -149,7 +149,7 @@ class PowerContract:
 
 @dataclass
 class TypecPort:
-    id: str                        # port0
+    id: str  # port0
     index: int
     data_role: str | None
     data_roles: list[str]
@@ -180,7 +180,7 @@ class TbRouter:
     tx_speed: str | None
     tx_lanes: int | None
     authorized: bool | None
-    usb4_ports: dict[str, str]     # usb4_portN -> link (none | usb4 | tbt ...)
+    usb4_ports: dict[str, str]  # usb4_portN -> link (none | usb4 | tbt ...)
 
 
 @dataclass
@@ -194,10 +194,10 @@ class TbDomain:
 
 @dataclass
 class Issue:
-    severity: str                  # info | warning
+    severity: str  # info | warning
     kind: str
     message: str
-    ref: str | None = None         # device or port id
+    ref: str | None = None  # device or port id
 
 
 @dataclass

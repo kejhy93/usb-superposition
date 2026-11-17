@@ -6,6 +6,7 @@ It tells us what a device *can* do, as opposed to what it negotiated.
 
 from __future__ import annotations
 
+import contextlib
 import struct
 import uuid
 from dataclasses import dataclass, field
@@ -22,10 +23,10 @@ CAP_BILLBOARD_ALTMODE = 0x0F
 
 # Billboard bmConfigured 2-bit states (USB Billboard Device Class spec 1.2x).
 BILLBOARD_STATES = {
-    0: "error",          # unspecified error
+    0: "error",  # unspecified error
     1: "not_attempted",  # configuration not attempted or exited
-    2: "failed",         # attempted but unsuccessful (e.g. cable can't carry it)
-    3: "configured",     # alternate mode configuration successful
+    2: "failed",  # attempted but unsuccessful (e.g. cable can't carry it)
+    3: "configured",  # alternate mode configuration successful
 }
 
 _LSE = {0: 1, 1: 1_000, 2: 1_000_000, 3: 1_000_000_000}
@@ -40,7 +41,7 @@ class BillboardAltMode:
 
 @dataclass
 class BosInfo:
-    lpm: bool = False                       # USB 2.0 Link Power Management
+    lpm: bool = False  # USB 2.0 Link Power Management
     ss_speeds: list[int] = field(default_factory=list)  # Mbps values from SuperSpeed cap
     ssp_lane_mbps: list[int] = field(default_factory=list)  # SuperSpeedPlus sublink speeds
     ssp_min_rx_lanes: int | None = None
@@ -75,10 +76,9 @@ def parse_bos(data: bytes | None) -> BosInfo | None:
             break
         body = data[off : off + length]
         if dtype == DEVICE_CAPABILITY:
-            try:
+            # a malformed capability is skipped; the rest is still parsed
+            with contextlib.suppress(struct.error, IndexError):
                 _parse_cap(info, cap, body)
-            except (struct.error, IndexError):
-                pass  # malformed capability: skip it, keep the rest
         off += length
     return info
 
