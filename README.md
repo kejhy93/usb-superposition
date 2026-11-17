@@ -9,8 +9,8 @@ Shows connected USB devices, USB-C ports, Power Delivery contracts and alternate
 modes on Linux. Reads only `/sys`, so it needs no root. Built for a Framework
 Laptop 16 on KDE Plasma 6, but the collector is generic.
 
-Status: **milestone 2** (collector, CLI, physical bay mapping). TUI, notification daemon
-with event history, and the Plasma widget are next. See [PLAN.md](PLAN.md).
+Status: **milestone 3** (collector, CLI, physical bay mapping, TUI). The notification
+daemon with event history and the Plasma widget are next. See [PLAN.md](PLAN.md).
 
 ## Usage
 
@@ -18,6 +18,7 @@ with event history, and the Plasma widget are next. See [PLAN.md](PLAN.md).
 python3 -m usbinspect            # human-readable overview (internal devices hidden)
 python3 -m usbinspect --all      # include keyboard, fingerprint reader, empty ports…
 python3 -m usbinspect --json     # full machine-readable state
+python3 -m usbinspect tui        # live interactive view (needs: pip install '.[tui]')
 python3 -m usbinspect calibrate  # name the physical bays: plug something into each one
 python3 -m usbinspect ports      # bay map and what's plugged into each bay
 python3 -m usbinspect snapshot out.json   # record /sys for a test fixture (serials redacted)
@@ -43,6 +44,24 @@ USB
     │     alt mode DisplayPort: configured
     └─ USB3.0 Hub  2109:0817  5 Gbps  [USB3 half, pair 5-1; hub]
 ```
+
+## TUI
+
+`usbinspect tui` shows a live tree: USB-C ports, then bays (or kernel root ports),
+then USB4 and issues. Tabs on the right show details, raw JSON, and this session's
+events. Plug/unplug and charger changes also pop up as toasts. It updates on udev
+events (via `pyudev`, if installed) and polls every 3 s for PD changes.
+
+| Key | Action |
+|---|---|
+| `i` | show/hide internal devices |
+| `m` | group by bays / by kernel root ports |
+| `e` | expand all |
+| `d` `w` `h` | Details / Raw / Events tab |
+| `j` | save the current state as JSON |
+| `r` / `q` | refresh / quit |
+
+`usbinspect --fixture FILE tui` browses a recorded snapshot.
 
 ## Physical bays
 
@@ -84,7 +103,7 @@ charger without PD, charger under 60 W, alt mode failed.
 ## Development
 
 ```sh
-python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+python3 -m venv --system-site-packages .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/pytest
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
 ```

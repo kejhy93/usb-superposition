@@ -15,7 +15,7 @@ dependencies = []  # the collector is stdlib-only
 [project.optional-dependencies]
 tui = ["textual>=0.80"]
 daemon = ["pyudev>=0.24"]
-dev = ["pytest>=8", "ruff>=0.15", "build>=1.2"]
+dev = ["pytest>=8", "ruff>=0.15", "build>=1.2", "textual>=0.80"]
 
 [project.scripts]
 usbinspect = "usbinspect.cli:main"

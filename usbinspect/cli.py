@@ -33,6 +33,7 @@ def _parser() -> argparse.ArgumentParser:
     snap.add_argument("--no-redact", action="store_true", help="keep serial numbers / unique ids")
 
     sub.add_parser("calibrate", help="interactively map physical bays to ports")
+    sub.add_parser("tui", help="interactive live view (needs the 'tui' extra: textual)")
 
     ports = sub.add_parser("ports", help="show the bay map and what is plugged into each bay")
     ports.add_argument("--export", action="store_true", help="print the map as TOML (for a built-in profile)")
@@ -62,6 +63,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "ports":
         return _ports(args, fs)
+
+    if args.cmd == "tui":
+        return _tui(args, fs)
 
     state = _state(args, fs)
     if args.json:
@@ -102,6 +106,32 @@ def _calibrate(args, fs) -> int:
     portmap.save(pm, path)
     print(f"saved to {path}")
     print("Tip: `usbinspect ports --export` prints it in a form that can become a built-in profile.")
+    return 0
+
+
+def _tui(args, fs) -> int:
+    try:
+        from . import tui
+    except ImportError:
+        print(
+            f"the TUI needs Textual, which {sys.executable} doesn't have.\n"
+            "  install it:  pip install 'usb-superposition[tui]'\n"
+            "  or, in a checkout:  python3 -m venv --system-site-packages .venv && "
+            ".venv/bin/pip install -e '.[tui]'",
+            file=sys.stderr,
+        )
+        return 2
+
+    def load_map(state: State):
+        if args.no_map:
+            return None
+        try:
+            return portmap.resolve(state.machine, args.map)
+        except (OSError, ValueError) as e:
+            print(f"ignoring bay map: {e}", file=sys.stderr)
+            return None
+
+    tui.run(lambda: collect(fs), load_map, live=not args.fixture, show_internal=args.all)
     return 0
 
 

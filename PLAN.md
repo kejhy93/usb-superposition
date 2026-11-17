@@ -161,9 +161,14 @@ Per USB device: bus/port path, VID:PID, manufacturer, product, class, driver,
 
 ## TUI
 
-- Textual app: left = port tree, right = detail pane for selected node
-  (all raw sysfs attrs available via a "raw" tab). Keys: `i` toggle internal,
-  `r` refresh, `j` dump JSON, `h` history tab, `q` quit.
+- Textual app: left = tree (USB-C ports, bays or root ports, USB4, issues), right = tabs
+  Details (rich tables: PDOs, alt modes, interfaces, Billboard), Raw (JSON of the node),
+  Events (this session; milestone 4 will add the persistent history here).
+  Keys: `i` internal, `m` bays/root ports, `e` expand, `d`/`w`/`h` tabs, `j` save JSON, `r`, `q`.
+- Change detection lives in `usbinspect/events.py` (`diff(old, new)`): device added/removed
+  (top of the plugged tree only), PD contract/lost, newly appearing issues. The daemon will reuse it.
+- Rebuilds only when the state changes (fingerprint without timestamp). Expanded nodes and
+  the selection survive rebuilds.
 - Uses the collector directly with its own pyudev monitor (works without the daemon).
 
 ## Layout
@@ -191,7 +196,7 @@ usb-superposition/
 
 1. ✅ Collector + `usbinspect --json` + sysfs snapshot fixtures & tests.
 2. ✅ Port mapping: stable port keys, `ports.toml`, `usbinspect calibrate` and `usbinspect ports`. Built-in Framework 16 profile still to come from a real calibration.
-3. TUI.
+3. ✅ TUI (`usbinspect tui`): live tree, Details/Raw/Events tabs, toasts, udev + 3 s poll.
 4. Daemon + notifications + event history + systemd user unit.
 5. Plasmoid.
 6. install.sh, README.
