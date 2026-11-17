@@ -116,7 +116,7 @@ Per USB device: bus/port path, VID:PID, manufacturer, product, class, driver,
 
 ## Plasmoid
 
-- Plasma 6 QML package `org.kejhy.usbsuperposition` in `plasmoid/`.
+- Plasma 6 QML package `org.hejnaluk.usbsuperposition` in `plasmoid/`.
 - Compact rep: USB icon + badge (charging watts if charging, else external device count;
   warning tint if any downgrade).
 - Full rep: one card per port (label, role chips, PD contract, alt modes,
