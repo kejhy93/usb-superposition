@@ -1604,6 +1604,8 @@
  "read:/sys/bus/usb/devices/usb8/8-0:1.0/usb8-port1/connect_type": "hotplug",
  "read:/sys/bus/usb/devices/usb8/8-0:1.0/usb8-port1/firmware_node/path": "\\_SB_.PCI0.GP19.XHC4.RHUB.PRT2",
  "read:/sys/bus/usb/devices/usb8/speed": "10000",
+ "read:/sys/class/dmi/id/product_name": "Laptop 16 (AMD Ryzen 7040 Series)",
+ "read:/sys/class/dmi/id/sys_vendor": "Framework",
  "read:/sys/class/power_supply/ucsi-source-psy-USBC000:001/current_max": "3750000",
  "read:/sys/class/power_supply/ucsi-source-psy-USBC000:001/online": "1",
  "read:/sys/class/power_supply/ucsi-source-psy-USBC000:001/status": "Charging",

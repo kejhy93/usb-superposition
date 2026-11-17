@@ -9,8 +9,8 @@ Shows connected USB devices, USB-C ports, Power Delivery contracts and alternate
 modes on Linux. Reads only `/sys`, so it needs no root. Built for a Framework
 Laptop 16 on KDE Plasma 6, but the collector is generic.
 
-Status: **milestone 1** (collector + CLI). TUI, notification daemon with event history,
-and the Plasma widget are next. See [PLAN.md](PLAN.md).
+Status: **milestone 2** (collector, CLI, physical bay mapping). TUI, notification daemon
+with event history, and the Plasma widget are next. See [PLAN.md](PLAN.md).
 
 ## Usage
 
@@ -18,6 +18,8 @@ and the Plasma widget are next. See [PLAN.md](PLAN.md).
 python3 -m usbinspect            # human-readable overview (internal devices hidden)
 python3 -m usbinspect --all      # include keyboard, fingerprint reader, empty ports…
 python3 -m usbinspect --json     # full machine-readable state
+python3 -m usbinspect calibrate  # name the physical bays: plug something into each one
+python3 -m usbinspect ports      # bay map and what's plugged into each bay
 python3 -m usbinspect snapshot out.json   # record /sys for a test fixture (serials redacted)
 python3 -m usbinspect --fixture out.json  # render from a recorded snapshot
 ```
@@ -41,6 +43,25 @@ USB
     │     alt mode DisplayPort: configured
     └─ USB3.0 Hub  2109:0817  5 Gbps  [USB3 half, pair 5-1; hub]
 ```
+
+## Physical bays
+
+The kernel doesn't know which USB or USB-C port is which physical socket. On the
+Framework 16 the firmware's `physical_location` data is the same placeholder for every
+port. `usbinspect calibrate` walks you through each bay: plug any USB device into it,
+or pull out and re-insert its expansion card. It records which port changed and saves
+`~/.config/usbinspect/ports.toml`:
+
+```toml
+[[bay]]
+id = "L1"
+name = "Left rear"
+usb = ["XHC3.PRT1", "XHC3.PRT2"]   # USB2 + USB3 halves, by ACPI name (stable across boots)
+typec = ["port0"]                   # the bay's USB-C / PD connector
+```
+
+Ports behind an internal hub get keys like `XHC0.PRT2/1`. Built-in profiles in
+`usbinspect/profiles/` are used when you have no map of your own.
 
 ## What it knows (all unprivileged)
 

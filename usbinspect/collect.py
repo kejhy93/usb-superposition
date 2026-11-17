@@ -33,6 +33,7 @@ USB = "/sys/bus/usb/devices"
 TYPEC = "/sys/class/typec"
 PSY = "/sys/class/power_supply"
 TB = "/sys/bus/thunderbolt/devices"
+DMI = "/sys/class/dmi/id"
 
 LOW_CHARGER_W = 60  # below this a laptop charger is worth mentioning
 
@@ -136,6 +137,7 @@ class _UsbCollector:
                 continue
             members = [p] + ([info["peer"]] if info["peer"] in port_info else [])
             acpi = [port_info[m]["acpi"] for m in members if port_info[m]["acpi"]]
+            keys = [_port_key(m, port_info[m]["acpi"]) for m in members]
             rp = RootPort(
                 id=_root_port_id(acpi) or "+".join(members),
                 ports=members,
@@ -151,6 +153,7 @@ class _UsbCollector:
                     info["connect_type"],
                 ),
                 max_mbps=max((hub_speed.get(port_info[m]["bus"]) or 0) for m in members) or None,
+                keys=keys,
             )
             for m in members:
                 port_to_group[m] = rp
@@ -172,12 +175,17 @@ class _UsbCollector:
                 dev = self._device(n, upstream)
                 if parent:
                     parent.children.append(dev)
+                    if parent.port_key:
+                        dev.port_key = f"{parent.port_key}/{path.rsplit('.', 1)[1]}"
                 built[n] = dev
             else:
                 upstream = hub_speed.get(int(bus))
                 dev = self._device(n, upstream)
                 built[n] = dev
-                rp = port_to_group.get(f"usb{bus}-port{path}")
+                root_port = f"usb{bus}-port{path}"
+                if root_port in port_info:
+                    dev.port_key = _port_key(root_port, port_info[root_port]["acpi"])
+                rp = port_to_group.get(root_port)
                 if rp:
                     rp.devices.append(dev)
         _pair_companions(list(built.values()))
@@ -315,6 +323,16 @@ def _controller(acpi: list[str]) -> str | None:
         if "RHUB" in parts:
             return parts[parts.index("RHUB") - 1]
     return None
+
+
+def _port_key(port: str, acpi: str | None) -> str:
+    """Stable name for a root port: 'XHC0.PRT1' from ACPI, else the kernel name.
+    Bus numbers (usbN) can change between boots; ACPI names don't."""
+    if acpi:
+        parts = acpi.strip("\\").split(".")
+        if len(parts) >= 3 and parts[-2] == "RHUB":
+            return f"{parts[-3]}.{parts[-1]}"
+    return port
 
 
 def _root_port_id(acpi: list[str]) -> str | None:
@@ -696,7 +714,9 @@ def collect(fs: Sysfs | None = None, now: datetime | None = None) -> State:
     external = sum(
         1 for rp in roots for d in _walk(rp.devices) if not d.internal and d.kind not in ("hub", "billboard")
     )
+    vendor, product = fs.read(f"{DMI}/sys_vendor"), fs.read(f"{DMI}/product_name")
     return State(
+        machine=" ".join(x for x in (vendor, product) if x) or None,
         schema=SCHEMA_VERSION,
         timestamp=(now or datetime.now(UTC)).isoformat(timespec="seconds"),
         typec_ports=typec,

@@ -44,6 +44,27 @@ def visible(d: UsbDevice, show_internal: bool) -> bool:
     return show_internal or not d.internal or any(visible(c, False) for c in d.children)
 
 
+def visible_unbayed(d: UsbDevice, show_internal: bool) -> bool:
+    """For the 'Other' section when a bay map exists: skip anything already shown in a bay."""
+    if d.bay is not None:
+        return False
+    return show_internal or not d.internal or any(visible_unbayed(c, False) for c in d.children)
+
+
+def _bay_names(state: State) -> dict[str, str]:
+    return {b.id: b.name for b in state.bays}
+
+
+def _find(state: State, name: str) -> UsbDevice | None:
+    stack = [d for rp in state.root_ports for d in rp.devices]
+    while stack:
+        d = stack.pop()
+        if d.name == name:
+            return d
+        stack.extend(d.children)
+    return None
+
+
 def fmt_pdo(p: Pdo) -> str:
     v = p.voltage_mv
     if v is None and p.min_voltage_mv and p.max_voltage_mv:
@@ -64,9 +85,10 @@ def render(state: State, show_internal: bool = False, color: bool = False) -> st
     if s.charging_w is not None:
         port = next(p for p in state.typec_ports if p.id == s.charging_port)
         pw = port.power
+        where = port.id + (f" · {_bay_names(state)[port.bay]}" if port.bay else "")
         out.append(
             c.bold(c.green(f"⚡ Charging {s.charging_w:g} W"))
-            + f" via {port.id} ({pw.voltage_mv / 1000:g} V × {pw.current_ma / 1000:g} A, {pw.usb_type})"
+            + f" via {where} ({pw.voltage_mv / 1000:g} V × {pw.current_ma / 1000:g} A, {pw.usb_type})"
         )
     else:
         out.append(c.dim("⚡ Not charging over USB-C"))
@@ -74,17 +96,19 @@ def render(state: State, show_internal: bool = False, color: bool = False) -> st
     out.append("")
 
     out.append(c.bold("USB-C ports"))
+    bay_names = _bay_names(state)
     for p in state.typec_ports:
-        out.extend(_typec(p, c))
+        out.extend(_typec(p, c, bay_names.get(p.bay or "")))
     if not state.typec_ports:
         out.append(c.dim("  (none found)"))
     out.append("")
 
-    out.append(c.bold("USB"))
-    for rp in state.root_ports:
-        lines = _root_port(rp, c, show_internal)
-        if lines:
-            out.extend(lines)
+    if state.bays:
+        out.extend(_bays(state, c, show_internal))
+    else:
+        out.append(c.bold("USB") + c.dim("  (run `usbinspect calibrate` to name the physical bays)"))
+        for rp in state.root_ports:
+            out.extend(_root_port(rp, c, lambda d: visible(d, show_internal), show_internal))
 
     for dom in state.thunderbolt:
         links = [f"{r.id}:{k}={v}" for r in dom.routers for k, v in r.usb4_ports.items()]
@@ -109,9 +133,38 @@ def render(state: State, show_internal: bool = False, color: bool = False) -> st
     return "\n".join(out)
 
 
-def _typec(p: TypecPort, c: _C) -> list[str]:
+def _bays(state: State, c: _C, show_internal: bool) -> list[str]:
+    src = (state.portmap_source or "").replace(os.path.expanduser("~"), "~", 1)
+    out = [c.bold("Bays") + c.dim(f"  (map: {src})")]
+
+    def shown(d: UsbDevice) -> bool:
+        return visible(d, show_internal)
+
+    for b in state.bays:
+        tags = ", ".join(b.typec + b.usb_ports) or "not calibrated"
+        devs = [d for n in b.devices if (d := _find(state, n)) and shown(d)]
+        head = f"  {c.cyan(b.name)} {c.dim(f'[{tags}]')}"
+        typec = next((p for p in state.typec_ports if p.bay == b.id and p.power and p.power.online), None)
+        if typec and typec.power.watts:
+            head += " " + c.green(f"⚡ {typec.power.watts:g} W")
+        out.append(head)
+        if not devs:
+            out.append(c.dim("    (empty)"))
+        for i, d in enumerate(devs):
+            out.extend(_device(d, c, shown, "    ", i == len(devs) - 1))
+    other = []
+    for rp in state.root_ports:
+        other.extend(_root_port(rp, c, lambda d: visible_unbayed(d, show_internal), show_empty=False))
+    if other:
+        out.append("")
+        out.append(c.bold("Other USB ports"))
+        out.extend(other)
+    return out
+
+
+def _typec(p: TypecPort, c: _C, bay_name: str | None = None) -> list[str]:
     roles = f"{p.data_role or '?'} · {p.power_role or '?'}"
-    head = f"  {c.bold(p.id)}  {roles}"
+    head = f"  {c.bold(p.id)}" + (f" {c.cyan(bay_name)}" if bay_name else "") + f"  {roles}"
     pt = p.partner
     if not pt:
         return [head + c.dim("  — nothing connected")]
@@ -154,20 +207,20 @@ def _typec(p: TypecPort, c: _C) -> list[str]:
     return lines
 
 
-def _root_port(rp: RootPort, c: _C, show_internal: bool) -> list[str]:
-    devs = [d for d in rp.devices if visible(d, show_internal)]
-    if not devs and not (show_internal and rp.connect_type != "not used"):
+def _root_port(rp: RootPort, c: _C, pred, show_empty: bool) -> list[str]:
+    devs = [d for d in rp.devices if pred(d)]
+    if not devs and not (show_empty and rp.connect_type != "not used"):
         return []
     tag = c.dim(f"({rp.connect_type}, up to {short_speed(rp.max_mbps)})")
     lines = [f"  {c.cyan(rp.id)} {tag}"]
     if not devs:
         lines.append(c.dim("    (empty)"))
     for i, d in enumerate(devs):
-        lines.extend(_device(d, c, show_internal, "    ", i == len(devs) - 1))
+        lines.extend(_device(d, c, pred, "    ", i == len(devs) - 1))
     return lines
 
 
-def _device(d: UsbDevice, c: _C, show_internal: bool, prefix: str, last: bool) -> list[str]:
+def _device(d: UsbDevice, c: _C, pred, prefix: str, last: bool) -> list[str]:
     branch = "└─ " if last else "├─ "
     name = d.product or "Unknown device"
     if d.internal:
@@ -193,7 +246,7 @@ def _device(d: UsbDevice, c: _C, show_internal: bool, prefix: str, last: bool) -
     for m in d.billboard or []:
         state = c.green(m.state) if m.state == "configured" else c.yellow(m.state)
         lines.append(f"{sub}{c.dim('alt mode')} {m.name}: {state}")
-    kids = [k for k in d.children if visible(k, show_internal)]
+    kids = [k for k in d.children if pred(k)]
     for i, k in enumerate(kids):
-        lines.extend(_device(k, c, show_internal, sub, i == len(kids) - 1))
+        lines.extend(_device(k, c, pred, sub, i == len(kids) - 1))
     return lines

@@ -91,6 +91,19 @@ Per USB device: bus/port path, VID:PID, manufacturer, product, class, driver,
 - The package is `usbinspect`, stdlib-only. Fixtures are recorded with
   `usbinspect snapshot` (serials and USB4 unique ids redacted).
 
+## Findings from milestone 2
+
+- `physical_location` holds firmware placeholders on the Framework 16 (every Type-C port says
+  top/upper/left, every USB port says left/center/center), so it's useless. Calibration is required.
+- Port keys: root ports use their ACPI name (`XHC0.PRT1`), and hub ports append the hub port
+  number (`XHC0.PRT2/1`). Bus numbers (`usbN`) aren't used because they can change between boots.
+- A bay owns both USB2 and USB3 keys. Calibration adds the peer automatically (root port peers,
+  with the same hub-port suffix).
+- XHC0.PRT2 (hardwired) leads to an internal Genesys hub (USB2 half 1-2 with 4 ports, USB3 half
+  2-2 with 3 ports). Some bays are probably behind it. To be confirmed by calibration.
+- Calibration takes a full `collect()` snapshot every 0.3 s (about 23 ms each) and diffs USB
+  devices, Type-C partners and online supplies.
+
 ## Hard parts / open technical risks
 
 1. **Mapping USB devices → Type-C port.** UCSI gives 4 ports, Framework 16 has 6
@@ -177,7 +190,7 @@ usb-superposition/
 ## Milestones
 
 1. ✅ Collector + `usbinspect --json` + sysfs snapshot fixtures & tests.
-2. Port mapping (auto + calibrate).
+2. ✅ Port mapping: stable port keys, `ports.toml`, `usbinspect calibrate` and `usbinspect ports`. Built-in Framework 16 profile still to come from a real calibration.
 3. TUI.
 4. Daemon + notifications + event history + systemd user unit.
 5. Plasmoid.

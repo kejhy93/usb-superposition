@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 @dataclass
@@ -50,6 +50,8 @@ class UsbDevice:
     container_id: str | None  # same value = same physical device (USB2+USB3 halves)
     companion: str | None  # sysfs name of the other half of the same physical device
     billboard: list[BillboardMode] | None
+    port_key: str | None = None  # stable attachment point, e.g. "XHC3.PRT1" or "XHC0.PRT2/1"
+    bay: str | None = None  # bay id from the port map
     children: list[UsbDevice] = field(default_factory=list)
 
 
@@ -62,6 +64,7 @@ class RootPort:
     acpi: list[str]
     connect_type: str | None  # hotplug | hardwired | not used
     max_mbps: float | None
+    keys: list[str] = field(default_factory=list)  # stable port keys of all members
     devices: list[UsbDevice] = field(default_factory=list)
 
 
@@ -167,6 +170,7 @@ class TypecPort:
     partner: Partner | None
     cable: Cable | None
     power: PowerContract | None
+    bay: str | None = None
 
 
 @dataclass
@@ -201,6 +205,15 @@ class Issue:
 
 
 @dataclass
+class Bay:
+    id: str  # e.g. "L1"
+    name: str  # e.g. "Left rear"
+    usb_ports: list[str]  # port keys
+    typec: list[str]  # Type-C port ids
+    devices: list[str] = field(default_factory=list)  # top-most device names in this bay
+
+
+@dataclass
 class Summary:
     charging_w: float | None
     charging_port: str | None
@@ -217,6 +230,9 @@ class State:
     thunderbolt: list[TbDomain]
     issues: list[Issue]
     summary: Summary
+    machine: str | None = None  # DMI "vendor product"
+    bays: list[Bay] = field(default_factory=list)
+    portmap_source: str | None = None  # path of user map, "builtin:<name>", or None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

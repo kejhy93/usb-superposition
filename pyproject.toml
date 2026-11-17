@@ -26,6 +26,9 @@ version = { attr = "usbinspect.__version__" }
 [tool.setuptools.packages.find]
 include = ["usbinspect*"]
 
+[tool.setuptools.package-data]
+usbinspect = ["profiles/*.toml"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
