@@ -658,7 +658,9 @@ def _walk(devs: list[UsbDevice]):
         yield from _walk(d.children)
 
 
-def _issues(typec: list[TypecPort], roots: list[RootPort]) -> list[Issue]:
+def _issues(
+    typec: list[TypecPort], roots: list[RootPort], low_charger_w: float = LOW_CHARGER_W
+) -> list[Issue]:
     out: list[Issue] = []
     for d in (d for rp in roots for d in _walk(rp.devices)):
         label = d.product or f"{d.vid}:{d.pid}"
@@ -693,7 +695,7 @@ def _issues(typec: list[TypecPort], roots: list[RootPort]) -> list[Issue]:
                         p.id,
                     )
                 )
-            elif pw.watts is not None and pw.watts < LOW_CHARGER_W:
+            elif pw.watts is not None and pw.watts < low_charger_w:
                 out.append(
                     Issue("warning", "charger_low", f"{p.id}: charger negotiated only {pw.watts:g} W", p.id)
                 )
@@ -703,12 +705,14 @@ def _issues(typec: list[TypecPort], roots: list[RootPort]) -> list[Issue]:
 # ---------------------------------------------------------------- entry point
 
 
-def collect(fs: Sysfs | None = None, now: datetime | None = None) -> State:
+def collect(
+    fs: Sysfs | None = None, now: datetime | None = None, low_charger_w: float = LOW_CHARGER_W
+) -> State:
     fs = fs or Sysfs()
     typec = _TypecCollector(fs).collect()
     roots = _UsbCollector(fs).collect()
     tb = _collect_thunderbolt(fs)
-    issues = _issues(typec, roots)
+    issues = _issues(typec, roots, low_charger_w)
 
     charging = next((p for p in typec if p.power and p.power.online and p.power_role == "sink"), None)
     external = sum(

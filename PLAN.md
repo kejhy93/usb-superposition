@@ -104,6 +104,20 @@ Per USB device: bus/port path, VID:PID, manufacturer, product, class, driver,
 - Calibration takes a full `collect()` snapshot every 0.3 s (about 23 ms each) and diffs USB
   devices, Type-C partners and online supplies.
 
+## Findings from milestone 4
+
+- Notifications go through `gdbus call ... Notify` (GLib ships it everywhere; no Python D-Bus
+  dependency). Every argument is parsed as GVariant text, so strings must be quoted and the
+  timeout written as `int32 -1`, because a bare `-1` is taken as a command-line option.
+- Re-collecting the whole state every 3 s cost about 0.8% of a core. The 3 s poll now only reads
+  the `ucsi-*` power supplies (0.35 ms), with a full re-read on udev events or every 60 s:
+  about 0.05% of a core idle.
+- Plasma 6 runs under systemd (`graphical-session.target`), so the user unit is
+  `WantedBy=graphical-session.target`. Its ExecStart is the absolute path of `usbinspect`
+  (currently `~/.local/bin/usbinspect` → project venv).
+- `state.json` = `State.to_dict()` + `recent_events` (last 10, non-internal) + `daemon` info,
+  written atomically. This is the plasmoid's data source.
+
 ## Hard parts / open technical risks
 
 1. **Mapping USB devices → Type-C port.** UCSI gives 4 ports, Framework 16 has 6
@@ -197,6 +211,6 @@ usb-superposition/
 1. ✅ Collector + `usbinspect --json` + sysfs snapshot fixtures & tests.
 2. ✅ Port mapping: stable port keys, `ports.toml`, `usbinspect calibrate` and `usbinspect ports`. Built-in Framework 16 profile still to come from a real calibration.
 3. ✅ TUI (`usbinspect tui`): live tree, Details/Raw/Events tabs, toasts, udev + 3 s poll.
-4. Daemon + notifications + event history + systemd user unit.
+4. ✅ Daemon + notifications + event history + systemd user unit (`usbinspect daemon|history|service|config`).
 5. Plasmoid.
 6. install.sh, README.

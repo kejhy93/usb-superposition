@@ -392,6 +392,7 @@ class UsbInspectApp(App):
         tree.show_root = False
         tree.guide_depth = 3
         self.refresh_state(initial=True)
+        self._load_history()
         if self.live:
             self.set_interval(POLL_S, self.refresh_state)
             self._start_udev()
@@ -421,6 +422,24 @@ class UsbInspectApp(App):
         self._update_header()
         for ev in events:
             self._record_event(ev)
+
+    def _load_history(self) -> None:
+        """Show what the daemon recorded before this session (dimmed)."""
+        if not self.live:
+            return
+        try:
+            from .history import History
+
+            recs = History().tail(100, include_internal=self.show_internal)
+        except OSError:
+            return
+        log = self.query_one("#events-log", RichLog)
+        if recs:
+            log.write(Text("— history (usbinspect daemon) —", style="dim italic"))
+        for r in recs:
+            style = "yellow dim" if r.severity == "warning" else "dim"
+            log.write(Text(f"{r.ts.astimezone():%m-%d %H:%M:%S}  {r.message}", style=style))
+        log.write(Text("— this session —", style="dim italic"))
 
     def _record_event(self, ev: Event) -> None:
         now = datetime.now()

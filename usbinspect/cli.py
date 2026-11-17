@@ -35,6 +35,22 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("calibrate", help="interactively map physical bays to ports")
     sub.add_parser("tui", help="interactive live view (needs the 'tui' extra: textual)")
 
+    dmn = sub.add_parser("daemon", help="watch for changes: notifications, history, state.json")
+    dmn.add_argument("--no-notify", action="store_true", help="don't send desktop notifications")
+
+    hist = sub.add_parser("history", help="show the event history recorded by the daemon")
+    hist.add_argument("--since", metavar="WHEN", help="e.g. 30m, 2h, 1d, 1w or an ISO date")
+    hist.add_argument("--kind", action="append", help="only this event kind (repeatable)")
+    hist.add_argument("--device", metavar="TEXT", help="VID:PID, sysfs name or part of the product name")
+    hist.add_argument("-n", type=int, default=50, help="show the last N events (default 50, 0 = all)")
+    hist.add_argument("--stats", action="store_true", help="per-device and charger statistics")
+
+    svc = sub.add_parser("service", help="manage the systemd user service running the daemon")
+    svc.add_argument("action", choices=("install", "uninstall", "status", "print"))
+
+    cfg = sub.add_parser("config", help="show the config file location; --init writes an example")
+    cfg.add_argument("--init", action="store_true")
+
     ports = sub.add_parser("ports", help="show the bay map and what is plugged into each bay")
     ports.add_argument("--export", action="store_true", help="print the map as TOML (for a built-in profile)")
     return ap
@@ -66,6 +82,32 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "tui":
         return _tui(args, fs)
+
+    if args.cmd == "daemon":
+        from . import daemon
+
+        if args.fixture:
+            print("the daemon watches the live system; --fixture is not supported", file=sys.stderr)
+            return 2
+        return daemon.run(
+            lambda low_w: collect(fs, low_charger_w=low_w), args.map, args.no_map, notify=not args.no_notify
+        )
+
+    if args.cmd == "history":
+        return _history(args)
+
+    if args.cmd == "service":
+        from . import service
+
+        if args.action == "print":
+            print(service.render_unit(), end="")
+            return 0
+        return {"install": service.install, "uninstall": service.uninstall, "status": service.status}[
+            args.action
+        ]()
+
+    if args.cmd == "config":
+        return _config(args)
 
     state = _state(args, fs)
     if args.json:
@@ -132,6 +174,65 @@ def _tui(args, fs) -> int:
             return None
 
     tui.run(lambda: collect(fs), load_map, live=not args.fixture, show_internal=args.all)
+    return 0
+
+
+def _history(args) -> int:
+    from .history import History, parse_since, stats
+
+    h = History()
+    filters = {
+        "since": parse_since(args.since) if args.since else None,
+        "kinds": set(args.kind) if args.kind else None,
+        "match": args.device,
+        "include_internal": args.all,
+    }
+    if not h.files():
+        print(f"no history yet ({h.path}); it is written by `usbinspect daemon`", file=sys.stderr)
+        return 1
+    if args.stats:
+        st = stats(list(h.read(**filters)))
+        if args.json:
+            json.dump(st, sys.stdout, indent=2)
+            print()
+            return 0
+        print("Events: " + ", ".join(f"{k} {v}" for k, v in sorted(st["events"].items())))
+        if st["charger_watts"]:
+            print(
+                "Charger contracts: "
+                + ", ".join(f"{w:g} W ×{n}" for w, n in sorted(st["charger_watts"].items()))
+            )
+        for ident, d in sorted(st["devices"].items(), key=lambda kv: -kv[1]["connects"]):
+            line = f"  {d['label']} ({ident}): connected {d['connects']}×"
+            if d["speeds_mbps"]:
+                line += " at " + ", ".join(f"{s:g} Mbps ×{n}" for s, n in d["speeds_mbps"].items())
+            if d["warnings"]:
+                line += " · warnings: " + ", ".join(f"{k} ×{n}" for k, n in d["warnings"].items())
+            print(line)
+        return 0
+    recs = list(h.read(**filters)) if args.n == 0 else h.tail(args.n, **filters)
+    for r in recs:
+        if args.json:
+            print(r.to_json())
+        else:
+            mark = "⚠" if r.severity == "warning" else " "
+            print(f"{r.ts.astimezone():%Y-%m-%d %H:%M:%S} {mark} {r.message}")
+    return 0
+
+
+def _config(args) -> int:
+    from .config import EXAMPLE, config_path
+
+    p = config_path()
+    if args.init:
+        if p.exists():
+            print(f"{p} already exists", file=sys.stderr)
+            return 1
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(EXAMPLE)
+        print(f"wrote {p}")
+        return 0
+    print(p if p.exists() else f"{p} (not created; defaults in use — `usbinspect config --init`)")
     return 0
 
 

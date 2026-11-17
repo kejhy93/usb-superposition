@@ -9,8 +9,8 @@ Shows connected USB devices, USB-C ports, Power Delivery contracts and alternate
 modes on Linux. Reads only `/sys`, so it needs no root. Built for a Framework
 Laptop 16 on KDE Plasma 6, but the collector is generic.
 
-Status: **milestone 3** (collector, CLI, physical bay mapping, TUI). The notification
-daemon with event history and the Plasma widget are next. See [PLAN.md](PLAN.md).
+Status: **milestone 4** (collector, CLI, bay mapping, TUI, notification daemon with
+event history). The Plasma widget is next. See [PLAN.md](PLAN.md).
 
 ## Usage
 
@@ -20,6 +20,8 @@ python3 -m usbinspect --all      # include keyboard, fingerprint reader, empty p
 python3 -m usbinspect --json     # full machine-readable state
 python3 -m usbinspect tui        # live interactive view (needs: pip install '.[tui]')
 python3 -m usbinspect calibrate  # name the physical bays: plug something into each one
+python3 -m usbinspect service install   # run the daemon with your desktop session
+python3 -m usbinspect history --since 1d   # what happened (needs the daemon)
 python3 -m usbinspect ports      # bay map and what's plugged into each bay
 python3 -m usbinspect snapshot out.json   # record /sys for a test fixture (serials redacted)
 python3 -m usbinspect --fixture out.json  # render from a recorded snapshot
@@ -62,6 +64,41 @@ events (via `pyudev`, if installed) and polls every 3 s for PD changes.
 | `r` / `q` | refresh / quit |
 
 `usbinspect --fixture FILE tui` browses a recorded snapshot.
+
+## Daemon, notifications and history
+
+`usbinspect daemon` watches udev events, plus a cheap 3 s check of the USB-C power
+supplies, because PD contract changes emit no udev event. Idle cost is about 0.05% of
+one CPU core. On every change it:
+
+- appends events to `~/.local/state/usbinspect/events.jsonl` (rotated at 5 MB, 3 kept),
+- sends desktop notifications for the event kinds you enable,
+- publishes the full state plus the last 10 events to `$XDG_RUNTIME_DIR/usbinspect/state.json`
+  (for the Plasma widget).
+
+```sh
+usbinspect service install     # writes ~/.config/systemd/user/usbinspect.service, enables it
+usbinspect service status      # or: journalctl --user -u usbinspect
+usbinspect service uninstall
+usbinspect config --init       # write ~/.config/usbinspect/config.toml with all options
+systemctl --user reload usbinspect   # re-read the config
+```
+
+Notifications that are on by default: charger connected or changed, SuperSpeed device
+stuck at USB 2, link slower than device and upstream allow, failed alt mode, charger
+without PD, charger under 60 W. Plug/unplug notifications are off by default (enable
+`device_added`/`device_removed`). Internal devices never notify unless
+`internal_devices = true`. Repeats within 30 s are suppressed, and charger updates
+replace the previous popup.
+
+```sh
+usbinspect history                    # last 50 events
+usbinspect history --since 2h --device 0bda:8153
+usbinspect history --kind usb_fallback --since 1w
+usbinspect history --stats            # per device: connects, speeds, warnings; charger wattages
+```
+
+The TUI's Events tab shows the recorded history (dimmed) above the current session.
 
 ## Physical bays
 
