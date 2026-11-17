@@ -71,6 +71,26 @@ Per USB device: bus/port path, VID:PID, manufacturer, product, class, driver,
 `speed` (negotiated), `bcdUSB` + BOS SuperSpeed caps (max possible), `rx/tx_lanes`,
 `max_power` (bMaxPower), and a computed `downgraded: bool`.
 
+## Findings from milestone 1 (Framework 16, kernel 6.19)
+
+- `bos_descriptors` is world-readable in sysfs, so the device's real max speed
+  (SuperSpeedPlus sublink speeds) is available without root.
+- BOS **Container ID** pairs the USB2 and USB3 halves of hubs/docks, which keeps
+  the USB2 half from being reported as a downgrade.
+- BOS **Billboard** capability reports alt mode results (e.g. DisplayPort "configured").
+  UCSI reports partner alt modes as `active=no` even while DP works through the dock,
+  so Billboard is the better signal.
+- No kernel `connector` links exist between USB ports and Type-C ports, and
+  `physical_location` is identical for every port. Mapping has to be ACPI/PCI
+  heuristics + calibration (milestone 2). Root ports are grouped by `peer` links
+  and named by ACPI path, e.g. `XHC0.PRT1+PRT6`.
+- USB4 domains live on the same PCI device as XHC3/XHC4 (`0000:c7:00.x`), which is a
+  hint for which root ports are USB4-capable.
+- Ports 1 and 2 have a Type-C partner with no PD and no alt modes, probably the
+  expansion cards themselves.
+- The package is `usbinspect`, stdlib-only. Fixtures are recorded with
+  `usbinspect snapshot` (serials and USB4 unique ids redacted).
+
 ## Hard parts / open technical risks
 
 1. **Mapping USB devices → Type-C port.** UCSI gives 4 ports, Framework 16 has 6
@@ -139,7 +159,7 @@ Per USB device: bus/port path, VID:PID, manufacturer, product, class, driver,
 usb-superposition/
   pyproject.toml            # entry point `usbinspect`
   usbinspect/
-    collect.py  model.py  usbids.py  portmap.py
+    sysfs.py  bos.py  names.py  model.py  collect.py  render.py  portmap.py
     daemon.py   notify.py  history.py  tui.py  cli.py
   plasmoid/  metadata.json  contents/ui/main.qml ...
   systemd/usbinspect.service
@@ -156,7 +176,7 @@ usb-superposition/
 
 ## Milestones
 
-1. Collector + `usbinspect --json` + sysfs snapshot fixtures & tests.
+1. ✅ Collector + `usbinspect --json` + sysfs snapshot fixtures & tests.
 2. Port mapping (auto + calibrate).
 3. TUI.
 4. Daemon + notifications + event history + systemd user unit.
