@@ -1,0 +1,20 @@
+# Sample Framework 16 bay map for fw16-charger-dock-hdmi.json (used by the widget tests)
+machine = "Framework Laptop 16 (AMD Ryzen 7040 Series)"
+
+[[bay]]
+id = "R1"
+name = "Right rear"
+usb = ["XHC3.PRT1", "XHC3.PRT2"]
+typec = ["port0"]
+
+[[bay]]
+id = "L1"
+name = "Left rear"
+usb = ["XHC4.PRT1", "XHC4.PRT2"]
+typec = ["port3"]
+
+[[bay]]
+id = "L2"
+name = "Left front"
+usb = ["XHC0.PRT1", "XHC0.PRT6"]
+typec = ["port2"]

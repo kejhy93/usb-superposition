@@ -119,6 +119,26 @@ Per USB device: bus/port path, VID:PID, manufacturer, product, class, driver,
 - `state.json` = `State.to_dict()` + `recent_events` (last 10, non-internal) + `daemon` info,
   written atomically. This is the plasmoid's data source.
 
+## Findings from milestone 5
+
+- The plugin is `BarWidget.qml` (owns the `FileView`, the view model and the bar button) +
+  `UsbPanel.qml` (presentation only) + `Model.js` (pure JS, `.pragma library`). Model.js has no
+  Qt calls, so pytest runs it under node against a state built from the FW16 fixture with
+  `tests/fixtures/fw16-ports.toml`. Device trees are flattened to rows with a depth, so the
+  QML has no recursive delegates.
+- `FileView { watchChanges: true }` + `reload()` in `onFileChanged` follows the daemon's
+  atomic rename. When the file is missing, `onLoadFailed` retries every 5 s.
+- The daemon now deletes `state.json` on a clean stop, so the widget says "daemon not running"
+  instead of showing stale data.
+- The shell runs with `QS_DISABLE_FILE_WATCHER=1` and caches compiled plugin QML: the
+  "Local plugin changed, reloading" message does not pick up code edits. `omarchy-restart-shell`
+  does. Disabling and re-enabling a plugin removes it from the bar layout.
+- `Qt.formatDateTime(date, locale, fmt)` ignores the format; use
+  `date.toLocaleString(Qt.locale(...), fmt)` like the clock widget.
+- The USB 2 half of a hub (it has a companion) shows no "/ max": its 480 Mbps is by design.
+- This machine is now a Framework Laptop 12 (13th Gen Intel); the user map in
+  `~/.config/usbinspect/ports.toml` is for it.
+
 ## Hard parts / open technical risks
 
 1. **Mapping USB devices → Type-C port.** UCSI gives 4 ports, Framework 16 has 6
@@ -185,8 +205,8 @@ in `~/.config/omarchy/plugins/`.
   `Commons.Translations` with `i18n/en.json`.
 - Install: symlink `omarchy/` to `~/.config/omarchy/plugins/usb-superposition`, then add
   the widget to a bar section (`omarchy bar` / `shell.json`). Plugin code hot-reloads on save.
-- Tests: Python tests check the manifest and that every `strings.t()` key used in the QML
-  exists in `en.json`; a sample `state.json` fixture is rendered by hand in the shell.
+- Tests (`tests/test_omarchy.py`): manifest, every `t()` key exists in `en.json` and none
+  is unused, every `Text` is PlainText, no `Process` in the QML, and the view model under node.
 
 ## Plasmoid (later)
 
@@ -220,7 +240,7 @@ usb-superposition/
   usbinspect/
     sysfs.py  bos.py  names.py  model.py  collect.py  render.py  portmap.py
     daemon.py   notify.py  history.py  tui.py  cli.py
-  omarchy/   manifest.json  BarWidget.qml  UsbPanel.qml  i18n/en.json
+  omarchy/   manifest.json  BarWidget.qml  UsbPanel.qml  Model.js  i18n/en.json
   plasmoid/  metadata.json  contents/ui/main.qml ...   (later)
   systemd/usbinspect.service
   tests/fixtures/sysfs-*/   # captured sysfs snapshots for offline tests
@@ -240,6 +260,6 @@ usb-superposition/
 2. ✅ Port mapping: stable port keys, `ports.toml`, `usbinspect calibrate` and `usbinspect ports`. Built-in Framework 16 profile still to come from a real calibration.
 3. ✅ TUI (`usbinspect tui`): live tree, Details/Raw/Events tabs, toasts, udev + 3 s poll.
 4. ✅ Daemon + notifications + event history + systemd user unit (`usbinspect daemon|history|service|config`).
-5. Omarchy shell bar widget (`omarchy/`), reading the daemon's `state.json`.
+5. ✅ Omarchy shell bar widget (`omarchy/`), reading the daemon's `state.json`.
 6. install.sh, README.
 7. Plasma 6 plasmoid (deferred; same `state.json` contract).

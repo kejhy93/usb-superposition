@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "usb.superposition",
+  "name": "USB Superposition",
+  "version": "0.1.0",
+  "author": "Lukas Hejnal",
+  "license": "MIT",
+  "homepage": "https://github.com/kejhy93/usb-superposition",
+  "description": "USB devices, USB-C ports, Power Delivery and negotiated vs. possible speeds, from the usbinspect daemon.",
+  "kinds": ["bar-widget"],
+  "activation": "on-demand",
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "USB",
+    "description": "Charging watts or external USB device count; click for ports, bays and speeds.",
+    "category": "System",
+    "aliases": ["usb", "usb-c", "typec", "power delivery", "charger"],
+    "allowMultiple": false
+  }
+}

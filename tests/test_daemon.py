@@ -139,6 +139,7 @@ def test_recent_events_survive_restart(env):
     world.hidden.add("1-2.1")
     d.tick()
     d.stop()
+    assert not d.state_file.exists()  # widgets show "daemon not running", not stale data
     d2 = Daemon(
         world.collect, lambda s: MAP, config.Config(), d.history, None, d.state_file, log=lambda s: None
     )

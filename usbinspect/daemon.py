@@ -133,6 +133,8 @@ class Daemon:
 
     def stop(self) -> None:
         self.history.append(Record(self.now(), "daemon_stop", "info", "usbinspect daemon stopped"))
+        # A stale state.json would make the widgets show old data as if it were live.
+        self.state_file.unlink(missing_ok=True)
 
     def _publish(self) -> None:
         doc = self.state.to_dict()

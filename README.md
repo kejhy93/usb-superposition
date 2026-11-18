@@ -9,8 +9,8 @@ Shows connected USB devices, USB-C ports, Power Delivery contracts and alternate
 modes on Linux. Reads only `/sys`, so it needs no root. Built for a Framework
 Laptop 16 on KDE Plasma 6, but the collector is generic.
 
-Status: **milestone 4** (collector, CLI, bay mapping, TUI, notification daemon with
-event history). An Omarchy bar widget is next; a Plasma widget comes later. See [PLAN.md](PLAN.md).
+Status: **milestone 5** (collector, CLI, bay mapping, TUI, notification daemon with
+event history, Omarchy bar widget). A Plasma widget comes later. See [PLAN.md](PLAN.md).
 
 ## Usage
 
@@ -99,6 +99,25 @@ usbinspect history --stats            # per device: connects, speeds, warnings; 
 ```
 
 The TUI's Events tab shows the recorded history (dimmed) above the current session.
+
+## Omarchy bar widget
+
+`omarchy/` is a bar widget plugin for the Omarchy shell. It reads the daemon's
+`state.json` and watches it for changes, so it doesn't poll and doesn't run any commands.
+The bar shows a USB icon with the charging wattage, or the number of external devices when
+not charging, tinted when the daemon reports a warning. Click it for USB-C ports (roles,
+PD contract, best charger offer, alt modes, cable), bays with their device trees
+(negotiated / max speed, Billboard alt mode results), issues and the last 10 events.
+The "Internal" switch shows internal devices; it is saved in `shell.json`.
+Middle-click re-reads the state.
+
+```sh
+usbinspect service install     # the widget needs the daemon running
+ln -s "$PWD/omarchy" ~/.config/omarchy/plugins/usb-superposition
+omarchy bar put usb.superposition --before omarchy.bluetooth
+```
+
+The shell caches compiled plugin QML, so after editing the widget run `omarchy-restart-shell`.
 
 ## Physical bays
 
