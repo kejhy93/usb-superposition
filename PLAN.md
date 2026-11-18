@@ -1,14 +1,14 @@
 # usb-superposition — plan
 
 Show connected USB devices, Type-C port state, and negotiated vs. possible modes
-on a Framework Laptop 16 (KDE Plasma 6, Wayland, Bazzite). Two frontends: a Plasma
-plasmoid and a TUI. Unprivileged, sysfs only.
+on a Framework Laptop 16 (Wayland). Frontends: a TUI, an Omarchy shell bar widget, and
+later a KDE Plasma 6 plasmoid. Unprivileged, sysfs only.
 
 ## Decisions (from Q&A)
 
 | Topic | Decision |
 |---|---|
-| Frontends | Plasma 6 plasmoid + terminal TUI |
+| Frontends | terminal TUI + Omarchy shell bar widget; Plasma 6 plasmoid later |
 | Scope | USB data speed, Power Delivery, alt modes (DP / TBT / USB4), cable e-marker |
 | Privilege | sysfs only — no root, no `framework_tool` |
 | Internal devices | hidden by default (toggle to show) |
@@ -33,11 +33,12 @@ plasmoid and a TUI. Unprivileged, sysfs only.
             │ writes $XDG_RUNTIME_DIR/usbinspect/state.json (atomic rename)
             │ appends events to ~/.local/state/usbinspect/events.jsonl
             ▼
-        plasmoid (QML) reads state.json  (falls back to running `usbinspect --json`)
+   desktop widgets (QML) read state.json:
+     Omarchy bar widget (Quickshell)  ·  Plasma plasmoid (later)
 ```
 
-Why a daemon: notifications must fire even when the plasmoid popup is closed and
-when no TUI is running; it also means the plasmoid never runs heavy Python itself.
+Why a daemon: notifications must fire even when no widget popup is open and
+when no TUI is running; it also means the widgets never run heavy Python themselves.
 
 ## Data model (JSON)
 
@@ -156,12 +157,38 @@ Per USB device: bus/port path, VID:PID, manufacturer, product, class, driver,
   (V, A, W, PDO list), `pd_lost`, `altmode_entered`, `altmode_exited`,
   `usb4_link`, `daemon_start` (with a full state snapshot, so the log is self-contained).
 - Rotation: when the file exceeds 5 MB, rename to `events.jsonl.1` (keep 3).
-- Uses: the TUI gets a History tab (filter by port/device/kind); the plasmoid shows
+- Uses: the TUI gets a History tab (filter by port/device/kind); the widgets show
   the last 10 events; `usbinspect history [--since 1d] [--device VID:PID]` in the CLI.
 - Bonus: per-device stats derived from the log ("this SSD fell back to USB 2 4× this week",
   "charger X always negotiates 45 W").
 
-## Plasmoid
+## Omarchy bar widget
+
+The machine now runs Omarchy (Hyprland + Quickshell-based `omarchy-shell`, no Waybar), so
+this desktop widget comes first. It is a user shell plugin, same shape as the other plugins
+in `~/.config/omarchy/plugins/`.
+
+- Plugin in `omarchy/` in this repo: `manifest.json` (`schemaVersion: 1`,
+  `kinds: ["bar-widget"]`, `entryPoints.barWidget: "BarWidget.qml"`), `BarWidget.qml`,
+  `UsbPanel.qml`, `i18n/en.json`.
+- Bar item: USB glyph + badge (charging watts if charging, else external device count;
+  warning colour if any issue). Click opens the panel.
+- Panel (built on `qs.Ui` `KeyboardPanel`, so motion and keyboard handling match the shell):
+  a USB-C port section (roles, PD contract, alt modes), bays with their device trees and a
+  "negotiated / max" speed per device, issues, and the last 10 events. "Show internal" toggle.
+- Data: Quickshell `FileView` on `$XDG_RUNTIME_DIR/usbinspect/state.json` with change
+  watching, so no polling; the daemon rewrites it atomically. If the file is missing,
+  show "daemon not running" with the `usbinspect service install` hint.
+- Safety: device names and serials come from USB descriptors and are untrusted, so every
+  `Text` uses `textFormat: Text.PlainText`. Never interpolate state values into commands.
+- Theming, motion and strings follow the shell: `qs.Commons` `Style` tokens and durations,
+  `Commons.Translations` with `i18n/en.json`.
+- Install: symlink `omarchy/` to `~/.config/omarchy/plugins/usb-superposition`, then add
+  the widget to a bar section (`omarchy bar` / `shell.json`). Plugin code hot-reloads on save.
+- Tests: Python tests check the manifest and that every `strings.t()` key used in the QML
+  exists in `en.json`; a sample `state.json` fixture is rendered by hand in the shell.
+
+## Plasmoid (later)
 
 - Plasma 6 QML package `org.hejnaluk.usbsuperposition` in `plasmoid/`.
 - Compact rep: USB icon + badge (charging watts if charging, else external device count;
@@ -193,7 +220,8 @@ usb-superposition/
   usbinspect/
     sysfs.py  bos.py  names.py  model.py  collect.py  render.py  portmap.py
     daemon.py   notify.py  history.py  tui.py  cli.py
-  plasmoid/  metadata.json  contents/ui/main.qml ...
+  omarchy/   manifest.json  BarWidget.qml  UsbPanel.qml  i18n/en.json
+  plasmoid/  metadata.json  contents/ui/main.qml ...   (later)
   systemd/usbinspect.service
   tests/fixtures/sysfs-*/   # captured sysfs snapshots for offline tests
   install.sh
@@ -212,5 +240,6 @@ usb-superposition/
 2. ✅ Port mapping: stable port keys, `ports.toml`, `usbinspect calibrate` and `usbinspect ports`. Built-in Framework 16 profile still to come from a real calibration.
 3. ✅ TUI (`usbinspect tui`): live tree, Details/Raw/Events tabs, toasts, udev + 3 s poll.
 4. ✅ Daemon + notifications + event history + systemd user unit (`usbinspect daemon|history|service|config`).
-5. Plasmoid.
+5. Omarchy shell bar widget (`omarchy/`), reading the daemon's `state.json`.
 6. install.sh, README.
+7. Plasma 6 plasmoid (deferred; same `state.json` contract).

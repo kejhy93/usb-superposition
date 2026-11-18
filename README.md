@@ -10,7 +10,7 @@ modes on Linux. Reads only `/sys`, so it needs no root. Built for a Framework
 Laptop 16 on KDE Plasma 6, but the collector is generic.
 
 Status: **milestone 4** (collector, CLI, bay mapping, TUI, notification daemon with
-event history). The Plasma widget is next. See [PLAN.md](PLAN.md).
+event history). An Omarchy bar widget is next; a Plasma widget comes later. See [PLAN.md](PLAN.md).
 
 ## Usage
 
@@ -74,7 +74,7 @@ one CPU core. On every change it:
 - appends events to `~/.local/state/usbinspect/events.jsonl` (rotated at 5 MB, 3 kept),
 - sends desktop notifications for the event kinds you enable,
 - publishes the full state plus the last 10 events to `$XDG_RUNTIME_DIR/usbinspect/state.json`
-  (for the Plasma widget).
+  (for the desktop widgets).
 
 ```sh
 usbinspect service install     # writes ~/.config/systemd/user/usbinspect.service, enables it
