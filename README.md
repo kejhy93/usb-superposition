@@ -9,22 +9,48 @@ Shows connected USB devices, USB-C ports, Power Delivery contracts and alternate
 modes on Linux. Reads only `/sys`, so it needs no root. Built for a Framework
 Laptop 16 on KDE Plasma 6, but the collector is generic.
 
-Status: **milestone 5** (collector, CLI, bay mapping, TUI, notification daemon with
-event history, Omarchy bar widget). A Plasma widget comes later. See [PLAN.md](PLAN.md).
+Status: **milestone 6** (collector, CLI, bay mapping, TUI, notification daemon with
+event history, Omarchy bar widget, installer). A Plasma widget comes later. See [PLAN.md](PLAN.md).
+
+## Install
+
+```sh
+git clone https://github.com/kejhy93/usb-superposition ~/projects/usb-superposition
+cd ~/projects/usb-superposition
+./install.sh
+```
+
+Everything is user-local, no root. The script:
+
+1. creates `.venv` (`--system-site-packages`, so a system `pyudev` is reused) and installs
+   the project into it, editable, with the TUI and daemon extras;
+2. links `~/.local/bin/usbinspect` to the venv's command;
+3. installs and starts the systemd user service (`usbinspect service install`);
+4. on Omarchy, links `omarchy/` into `~/.config/omarchy/plugins/usb-superposition` and puts
+   the widget on the bar, before Bluetooth (a widget already on the bar keeps its spot).
+
+Re-running it is safe and is how you update after a `git pull`. Options: `--no-service`,
+`--no-widget`, `--dev` (adds pytest, ruff and build). `./install.sh --uninstall` removes
+the service, the widget and the command link. It keeps `.venv`, your config
+(`~/.config/usbinspect`) and the event history (`~/.local/state/usbinspect`).
+
+Needs Python 3.11+. Without the installer, `python3 -m usbinspect` works straight from a
+checkout (stdlib only; the TUI needs `textual`, live updates need `pyudev`).
+
+Then name your physical bays once with `usbinspect calibrate` (see [Physical bays](#physical-bays)).
 
 ## Usage
 
 ```sh
-python3 -m usbinspect            # human-readable overview (internal devices hidden)
-python3 -m usbinspect --all      # include keyboard, fingerprint reader, empty ports…
-python3 -m usbinspect --json     # full machine-readable state
-python3 -m usbinspect tui        # live interactive view (needs: pip install '.[tui]')
-python3 -m usbinspect calibrate  # name the physical bays: plug something into each one
-python3 -m usbinspect service install   # run the daemon with your desktop session
-python3 -m usbinspect history --since 1d   # what happened (needs the daemon)
-python3 -m usbinspect ports      # bay map and what's plugged into each bay
-python3 -m usbinspect snapshot out.json   # record /sys for a test fixture (serials redacted)
-python3 -m usbinspect --fixture out.json  # render from a recorded snapshot
+usbinspect            # human-readable overview (internal devices hidden)
+usbinspect --all      # include keyboard, fingerprint reader, empty ports…
+usbinspect --json     # full machine-readable state
+usbinspect tui        # live interactive view
+usbinspect calibrate  # name the physical bays: plug something into each one
+usbinspect history --since 1d   # what happened (needs the daemon)
+usbinspect ports      # bay map and what's plugged into each bay
+usbinspect snapshot out.json   # record /sys for a test fixture (serials redacted)
+usbinspect --fixture out.json  # render from a recorded snapshot
 ```
 
 Example:
@@ -112,10 +138,14 @@ The "Internal" switch shows internal devices; it is saved in `shell.json`.
 The refresh button (or middle-click on the bar icon) runs `systemctl --user reload usbinspect`,
 which makes the daemon re-scan now and republish; without the service it just re-reads the file.
 
+`./install.sh` sets it up. By hand, that is:
+
 ```sh
 usbinspect service install     # the widget needs the daemon running
 ln -s "$PWD/omarchy" ~/.config/omarchy/plugins/usb-superposition
+omarchy-shell shell rescanPlugins
 omarchy bar put usb.superposition --before omarchy.bluetooth
+omarchy plugin enable usb.superposition
 ```
 
 The shell caches compiled plugin QML, so after editing the widget run `omarchy-restart-shell`.
@@ -160,20 +190,14 @@ charger without PD, charger under 60 W, alt mode failed.
 ## Development
 
 ```sh
-python3 -m venv --system-site-packages .venv && .venv/bin/pip install -e ".[dev]"
+./install.sh --dev            # or, venv only: python3 -m venv --system-site-packages .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/pytest
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
 ```
 
-> **Tip:** to run plain `usbinspect` from anywhere instead of `.venv/bin/usbinspect`,
-> symlink it into a directory on your `PATH`:
->
-> ```sh
-> ln -s "$PWD/.venv/bin/usbinspect" ~/.local/bin/usbinspect
-> ```
->
-> The install is editable, so code changes apply right away, and
-> `usbinspect service install` picks up the symlink too.
+The install is editable, so Python changes apply right away; restart the daemon
+(`systemctl --user restart usbinspect`) to pick them up there. `tests/test_install.py`
+runs `install.sh` against a temporary `HOME` with `systemctl`, `omarchy` and the venv stubbed.
 
 CI (GitHub Actions) runs ruff, then pytest on Python 3.11–3.15, then builds the
 sdist and wheel. Every run also renders the recorded Framework 16 snapshot and the

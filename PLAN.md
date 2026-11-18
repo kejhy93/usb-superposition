@@ -119,6 +119,18 @@ Per USB device: bus/port path, VID:PID, manufacturer, product, class, driver,
 - `state.json` = `State.to_dict()` + `recent_events` (last 10, non-internal) + `daemon` info,
   written atomically. This is the plasmoid's data source.
 
+## Findings from milestone 6
+
+- `install.sh` is idempotent: links are only replaced when they are symlinks, never real files,
+  and `omarchy bar put` keeps a widget that is already on the bar. Uninstall removes only links
+  that point into this repo and keeps the venv, config and history.
+- The service is installed with `~/.local/bin` first on `PATH`, so ExecStart is the stable
+  symlink rather than the venv path.
+- Right after `omarchy-shell shell rescanPlugins` the shell drops calls ("omarchy-shell is not
+  responding") for a moment, so `bar put` / `plugin enable` are retried 5 × 1 s.
+- `omarchy plugin enable <id>` with a placement moves an existing widget, hence `bar put` first
+  (with placement) and then `enable` without one.
+
 ## Findings from milestone 5
 
 - The plugin is `BarWidget.qml` (owns the `FileView`, the view model and the bar button) +
@@ -244,7 +256,7 @@ usb-superposition/
   plasmoid/  metadata.json  contents/ui/main.qml ...   (later)
   systemd/usbinspect.service
   tests/fixtures/sysfs-*/   # captured sysfs snapshots for offline tests
-  install.sh
+  install.sh                # user-local install / --uninstall
 ```
 
 ## Dependencies
@@ -261,5 +273,5 @@ usb-superposition/
 3. ✅ TUI (`usbinspect tui`): live tree, Details/Raw/Events tabs, toasts, udev + 3 s poll.
 4. ✅ Daemon + notifications + event history + systemd user unit (`usbinspect daemon|history|service|config`).
 5. ✅ Omarchy shell bar widget (`omarchy/`), reading the daemon's `state.json`.
-6. install.sh, README.
+6. ✅ `install.sh` (venv, `~/.local/bin` link, service, Omarchy widget; `--uninstall`), README install section.
 7. Plasma 6 plasmoid (deferred; same `state.json` contract).
