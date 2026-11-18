@@ -78,10 +78,14 @@ def test_every_text_is_plain_text():
         assert "RichText" not in src and "StyledText" not in src
 
 
-def test_qml_runs_no_commands():
+def test_qml_runs_only_the_fixed_refresh_command():
+    """The only command is the daemon reload, with a literal argv (no state values)."""
+    commands = []
     for f in QML:
         src = f.read_text()
-        assert "Process" not in src and "execDetached" not in src, f.name
+        assert "execDetached" not in src, f.name
+        commands += re.findall(r"command:\s*(.+)", src)
+    assert commands == ['["systemctl", "--user", "reload", "usbinspect.service"]']
 
 
 # ---------- Model.js under node ----------
@@ -194,6 +198,7 @@ def test_model_groups_by_bay_and_hides_internal(run_model):
     assert (rear["rows"][0]["speed"], rear["rows"][0]["maxSpeed"]) == ("480 Mbps", "")
     assert "USB 2 half" in rear["rows"][0]["tags"]
     assert v["chargingW"] == "75 W"
+    assert v["updated"] == 1794916800000  # state timestamp, 2026-11-17 12:00 UTC
     billboard = rear["rows"][2]
     assert billboard["modes"] == [{"name": "DisplayPort", "ok": True, "state": "configured"}]
     assert "billboard" in billboard["tags"]

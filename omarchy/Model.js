@@ -284,6 +284,7 @@ function buildView(doc, showInternal, t) {
   var names = bayNames(doc)
   return {
     machine: clip(doc.machine || "", 80),
+    updated: isFinite(Date.parse(doc.timestamp)) ? Date.parse(doc.timestamp) : 0,
     badge: badge(doc),
     warning: hasWarning(doc),
     tooltip: tooltip(doc, t),

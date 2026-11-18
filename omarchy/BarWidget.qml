@@ -22,8 +22,16 @@ BarWidget {
 
   Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
+  property bool refreshing: false
+
   function reload() { stateFile.reload() }
-  function refresh() { root.broadcast("reload") }
+  // Manual refresh: ask the daemon to re-scan now (SIGHUP via the unit's ExecReload);
+  // it republishes state.json, which the FileView picks up. Fixed argv, no state values.
+  function refresh() {
+    if (refreshProc.running) return
+    root.refreshing = true
+    refreshProc.running = true
+  }
   function togglePanel() { if (panelLoader.item) panelLoader.item.toggle() }
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened : false
   function open() { if (panelLoader.item) panelLoader.item.open() }
@@ -57,6 +65,23 @@ BarWidget {
       root.missing = true
       retry.restart()
     }
+  }
+
+  Process {
+    id: refreshProc
+    command: ["systemctl", "--user", "reload", "usbinspect.service"]
+    onExited: function(exitCode) {
+      // Not running as a service (or not at all): re-read whatever is there.
+      if (exitCode !== 0) root.broadcast("reload")
+      settle.restart()
+    }
+  }
+
+  // Keep the button busy until the daemon's re-scan has had time to land.
+  Timer {
+    id: settle
+    interval: 800
+    onTriggered: { root.refreshing = false; root.broadcast("reload") }
   }
 
   // Only while the file is missing (daemon not started yet, or restarting).

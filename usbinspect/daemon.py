@@ -109,11 +109,18 @@ class Daemon:
         self._publish()
         self.log(f"started; {len(self.state.issues)} issue(s); state at {self.state_file}")
 
-    def tick(self) -> list[Event]:
-        """Re-read the system; handle and return what changed."""
+    def tick(self, force: bool = False) -> list[Event]:
+        """Re-read the system; handle and return what changed.
+
+        `force` (a manual refresh) republishes state.json even when nothing changed,
+        so the widgets see a fresh timestamp.
+        """
         new = self._load()
         fp = _fingerprint(new)
         if fp == self._fp:
+            if force:
+                self.state = new
+                self._publish()
             return []
         events = diff(self.state, new)
         self.state, self._fp = new, fp
@@ -134,7 +141,13 @@ class Daemon:
     def stop(self) -> None:
         self.history.append(Record(self.now(), "daemon_stop", "info", "usbinspect daemon stopped"))
         # A stale state.json would make the widgets show old data as if it were live.
-        self.state_file.unlink(missing_ok=True)
+        # Only remove our own: another daemon instance may have taken it over.
+        try:
+            owner = json.loads(self.state_file.read_text()).get("daemon", {}).get("pid")
+        except (OSError, ValueError, AttributeError):
+            return
+        if owner == os.getpid():
+            self.state_file.unlink(missing_ok=True)
 
     def _publish(self) -> None:
         doc = self.state.to_dict()
@@ -175,14 +188,19 @@ def run(collect_fn: Callable[[float], State], map_arg: str | None, no_map: bool,
     )
 
     stopping = False
+    refresh_requested = False
 
     def on_term(signum, frame):
         nonlocal stopping
         stopping = True
 
     def on_hup(signum, frame):
+        # `systemctl --user reload usbinspect` (the widgets' refresh button): re-read the
+        # config and the bay map, re-scan now and republish.
+        nonlocal refresh_requested
         d.config = load_config()
-        d.log("configuration reloaded")
+        refresh_requested = True
+        d.log("configuration reloaded, refreshing")
 
     signal.signal(signal.SIGTERM, on_term)
     signal.signal(signal.SIGINT, on_term)
@@ -213,11 +231,12 @@ def run(collect_fn: Callable[[float], State], map_arg: str | None, no_map: bool,
                 fp = power_fingerprint()
                 if fp != power_fp:
                     power_fp, due = fp, True
-            if due:
+            force, refresh_requested = refresh_requested, False
+            if due or force:
                 pending = None
                 next_full = now + FULL_S
                 try:
-                    d.tick()
+                    d.tick(force=force)
                 except Exception as e:  # never die on one bad read
                     d.log(f"error during refresh: {e!r}")
     finally:

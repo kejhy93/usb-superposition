@@ -104,7 +104,7 @@ Panel {
               id: heroLabels
               anchors.left: heroIcon.right
               anchors.leftMargin: Style.space(14)
-              anchors.right: internalToggle.left
+              anchors.right: refreshButton.left
               anchors.rightMargin: Style.space(10)
               anchors.verticalCenter: parent.verticalCenter
               spacing: Style.space(2)
@@ -129,6 +129,20 @@ Panel {
                 font.bold: true
                 font.letterSpacing: 1.2
               }
+            }
+
+            PanelActionButton {
+              id: refreshButton
+              anchors.right: internalToggle.visible ? internalToggle.left : parent.right
+              anchors.rightMargin: internalToggle.visible ? Style.space(12) : 0
+              anchors.verticalCenter: parent.verticalCenter
+              iconText: "\u{f0450}"
+              tooltipText: strings.t("panel.refresh")
+              foreground: root.fg
+              fontFamily: root.family
+              enabled: !!root.widget && !root.widget.refreshing
+              opacity: enabled ? 1 : 0.45
+              onClicked: root.widget.refresh()
             }
 
             Row {
@@ -462,9 +476,16 @@ Panel {
           }
 
           Label {
-            visible: !!root.view && root.view.machine !== ""
+            visible: !!root.view
             width: parent.width
-            text: root.view ? root.view.machine : ""
+            text: {
+              if (!root.view) return ""
+              var bits = []
+              if (root.view.updated)
+                bits.push(strings.t("panel.updated").arg(new Date(root.view.updated).toLocaleString(Qt.locale(Commons.I18n.formatLocale), "HH:mm:ss")))
+              if (root.view.machine !== "") bits.push(root.view.machine)
+              return bits.join(" · ")
+            }
             color: root.faint
             font.pixelSize: Style.font.caption
             horizontalAlignment: Text.AlignRight

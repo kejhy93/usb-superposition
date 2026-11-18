@@ -34,5 +34,7 @@
   "device.altmode": "Alt mode %1: %2",
   "kind.input_module": "input module",
   "kind.expansion_card": "expansion card",
-  "kind.billboard": "billboard"
+  "kind.billboard": "billboard",
+  "panel.refresh": "Refresh: re-scan USB now",
+  "panel.updated": "Updated %1"
 }

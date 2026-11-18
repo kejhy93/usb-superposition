@@ -86,6 +86,27 @@ def test_no_change_no_events(env):
     assert d.tick() == []
 
 
+def test_stop_keeps_state_written_by_another_daemon(env):
+    d, *_ = env
+    d.start()
+    doc = json.loads(d.state_file.read_text())
+    doc["daemon"]["pid"] = -1  # another instance took over
+    d.state_file.write_text(json.dumps(doc))
+    d.stop()
+    assert d.state_file.exists()
+
+
+def test_forced_refresh_republishes_without_change(env):
+    d, world, bus, clock, tmp = env
+    d.start()
+    d.state_file.unlink()
+    assert d.tick() == []
+    assert not d.state_file.exists()  # unchanged: nothing written
+    assert d.tick(force=True) == []
+    assert json.loads(d.state_file.read_text())["summary"]["charging_w"] == 75.0
+    assert lines(tmp / "events.jsonl")[-1]["kind"] == "daemon_start"  # no fake events
+
+
 def test_unplug_logged_but_not_notified_by_default(env):
     d, world, bus, clock, tmp = env
     d.start()

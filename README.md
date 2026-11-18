@@ -109,7 +109,8 @@ not charging, tinted when the daemon reports a warning. Click it for USB-C ports
 PD contract, best charger offer, alt modes, cable), bays with their device trees
 (negotiated / max speed, Billboard alt mode results), issues and the last 10 events.
 The "Internal" switch shows internal devices; it is saved in `shell.json`.
-Middle-click re-reads the state.
+The refresh button (or middle-click on the bar icon) runs `systemctl --user reload usbinspect`,
+which makes the daemon re-scan now and republish; without the service it just re-reads the file.
 
 ```sh
 usbinspect service install     # the widget needs the daemon running
