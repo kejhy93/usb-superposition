@@ -145,6 +145,16 @@ python3 -m venv --system-site-packages .venv && .venv/bin/pip install -e ".[dev]
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
 ```
 
+> **Tip:** to run plain `usbinspect` from anywhere instead of `.venv/bin/usbinspect`,
+> symlink it into a directory on your `PATH`:
+>
+> ```sh
+> ln -s "$PWD/.venv/bin/usbinspect" ~/.local/bin/usbinspect
+> ```
+>
+> The install is editable, so code changes apply right away, and
+> `usbinspect service install` picks up the symlink too.
+
 CI (GitHub Actions) runs ruff, then pytest on Python 3.11–3.15, then builds the
 sdist and wheel. Every run also renders the recorded Framework 16 snapshot and the
 runner's own `/sys`.
