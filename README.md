@@ -6,8 +6,10 @@
 > the rest: what's connected, how it's connected, and what it *could* have negotiated.
 
 Shows connected USB devices, USB-C ports, Power Delivery contracts and alternate
-modes on Linux. Reads only `/sys`, so it needs no root. Built for a Framework
-Laptop 16 on KDE Plasma 6, but the collector is generic.
+modes on Linux. Reads only `/sys`, so it needs no root. Use it from the command line,
+a live TUI, desktop notifications, or a panel widget for the [Omarchy](#omarchy-bar-widget)
+bar or [KDE Plasma 6](#plasma-widget). Built on a Framework Laptop 16, but the collector
+is generic.
 
 Status: **milestone 7** (collector, CLI, bay mapping, TUI, notification daemon with
 event history, Omarchy bar widget, installer, Plasma 6 widget). See [PLAN.md](PLAN.md).

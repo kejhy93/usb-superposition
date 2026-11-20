@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "usb-superposition"
 dynamic = ["version"]
-description = "USB devices, USB-C ports, Power Delivery and negotiated vs. possible modes — CLI, TUI and KDE Plasma widget"
+description = "USB devices, USB-C ports, Power Delivery and negotiated vs. possible modes — CLI, TUI, desktop notifications, and widgets for the Omarchy bar and KDE Plasma"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
