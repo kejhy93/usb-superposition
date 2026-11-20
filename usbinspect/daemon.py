@@ -45,7 +45,7 @@ def power_fingerprint(root: str = "/") -> str:
     except OSError:
         return ""
     for n in names:
-        for attr in ("online", "voltage_now", "current_max", "usb_type"):
+        for attr in ("online", "voltage_now", "current_now", "current_max", "usb_type"):
             try:
                 parts.append((base / n / attr).read_text().strip())
             except OSError:

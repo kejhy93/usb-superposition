@@ -47,6 +47,8 @@ def test_charger_offers(state):
     fixed = [(p.voltage_mv, p.current_ma) for p in pd.source]
     assert (20000, 3750) in fixed and (9000, 1330) in fixed
     assert pd.max_source_w == 75.0
+    # the snapshot has the UCSI artifact: PDO 5 is a copy of PDO 1, which PD forbids
+    assert [p.index for p in pd.source] == [1, 2, 3, 4]
 
 
 def test_partner_altmodes_listed(state):
@@ -142,6 +144,14 @@ def test_non_pd_charger_warns():
 
 def test_low_pd_charger_warns():
     s = load(**{f"read:{PSY}/current_max": "2250000"})  # 20 V × 2.25 A = 45 W
+    assert s.summary.charging_w == 45.0
+    assert [i.kind for i in s.issues] == ["charger_low"]
+
+
+def test_contract_uses_negotiated_current_not_max_pdo_current():
+    """A 45 W charger (20 V PDO at 2.25 A) whose 5-15 V PDOs allow 3 A: current_max is 3 A."""
+    s = load(**{f"read:{PSY}/current_max": "3000000", f"read:{PSY}/current_now": "2250000"})
+    assert s.typec_ports[0].power.current_ma == 2250
     assert s.summary.charging_w == 45.0
     assert [i.kind for i in s.issues] == ["charger_low"]
 

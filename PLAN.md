@@ -92,6 +92,12 @@ Per USB device: bus/port path, VID:PID, manufacturer, product, class, driver,
 - The package is `usbinspect`, stdlib-only. Fixtures are recorded with
   `usbinspect snapshot` (serials and USB4 unique ids redacted).
 
+- PD contract current comes from the UCSI supply's `current_now` (the negotiated current).
+  `current_max` is the highest current in any of the charger's PDOs: a 45 W charger (20 V at
+  2.25 A, but 3 A at 5-15 V) read as 60 W with it. `current_max` is only a fallback for old snapshots.
+- The Framework 16 EC ignores the offset of UCSI's second GET_PDOS read, so PDO 5 repeats PDO 1
+  (without the flag attributes the kernel shows only on PDO 1). Repeats are dropped by electrical value.
+
 ## Findings from milestone 2
 
 - `physical_location` holds firmware placeholders on the Framework 16 (every Type-C port says

@@ -359,6 +359,10 @@ _CABLE_CURRENT = {0: 3000, 1: 3000, 2: 5000}
 _CABLE_VOLTAGE = {0: 20, 1: 30, 2: 40, 3: 50}
 
 
+def _pdo_key(p: Pdo) -> tuple:
+    return (p.type, p.voltage_mv, p.min_voltage_mv, p.max_voltage_mv, p.current_ma, p.power_mw)
+
+
 class _TypecCollector:
     def __init__(self, fs: Sysfs) -> None:
         self.fs = fs
@@ -426,7 +430,12 @@ class _TypecCollector:
         fs, d = self.fs, f"{PSY}/{supply}"
         online = bool(_bool(fs.read(f"{d}/online")))
         usb_type, usb_types = _bracketed(fs.read(f"{d}/usb_type"))
-        uv, ua = _int(fs.read(f"{d}/voltage_now")), _int(fs.read(f"{d}/current_max"))
+        uv = _int(fs.read(f"{d}/voltage_now"))
+        # current_now is the negotiated current (the RDO's operating current under PD).
+        # current_max is the highest current in *any* of the charger's PDOs, e.g. 3 A at
+        # 5-15 V on a 45 W charger whose 20 V PDO is 2.25 A, so 20 V x current_max
+        # overstates the contract. Older snapshots and kernels may lack current_now.
+        ua = _int(fs.read(f"{d}/current_now")) or _int(fs.read(f"{d}/current_max"))
         mv = uv // 1000 if uv is not None else None
         ma = ua // 1000 if ua is not None else None
         vmax = _int(fs.read(f"{d}/voltage_max"))
@@ -454,11 +463,11 @@ class _TypecCollector:
         )
 
     def _pdos(self, d: str) -> list[Pdo]:
-        out = []
-        for e in self.fs.listdir(d):
-            idx, _, typ = e.partition(":")
-            if not idx.isdigit():
-                continue
+        out: list[Pdo] = []
+        entries = [
+            (int(i), t, e) for e in self.fs.listdir(d) for i, _, t in [e.partition(":")] if i.isdigit()
+        ]
+        for idx, typ, e in sorted(entries):
             attrs: dict[str, object] = {}
             for a in self.fs.listdir(f"{d}/{e}"):
                 if a in ("uevent", "power", "subsystem", "device"):
@@ -467,7 +476,7 @@ class _TypecCollector:
                 if raw is None:
                     continue
                 attrs[a] = _unit(raw) if re.search(r"m[VAW]$", raw) else (_int(raw) if raw.isdigit() else raw)
-            pdo = Pdo(index=int(idx), type=typ, attrs=attrs)
+            pdo = Pdo(index=idx, type=typ, attrs=attrs)
             v = attrs.get("voltage")
             vmin, vmax = attrs.get("minimum_voltage"), attrs.get("maximum_voltage")
             cur = attrs.get("maximum_current") or attrs.get("operational_current")
@@ -482,8 +491,14 @@ class _TypecCollector:
                 pdo.watts = round(pdo.power_mw / 1000, 1)
             elif top_v and pdo.current_ma:
                 pdo.watts = round(top_v * pdo.current_ma / 1e6, 1)
+            # UCSI reads PDOs four at a time; some EC firmware (Framework 16) ignores the
+            # offset of the second read and repeats PDO 1 as PDO 5 (without PDO 1's flag
+            # attributes, which the kernel only exposes on PDO 1). PD forbids two PDOs with
+            # the same electrical values, so a repeat is always this artifact.
+            if any(_pdo_key(o) == _pdo_key(pdo) for o in out):
+                continue
             out.append(pdo)
-        return sorted(out, key=lambda x: x.index)
+        return out
 
     def _altmodes(self, d: str, prefix: str) -> list[AltMode]:
         out = []
