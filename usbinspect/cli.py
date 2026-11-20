@@ -44,6 +44,19 @@ def _parser() -> argparse.ArgumentParser:
     hist.add_argument("--device", metavar="TEXT", help="VID:PID, sysfs name or part of the product name")
     hist.add_argument("-n", type=int, default=50, help="show the last N events (default 50, 0 = all)")
     hist.add_argument("--stats", action="store_true", help="per-device and charger statistics")
+    hist.add_argument(
+        "--clear",
+        metavar="PORT",
+        help="delete the history of one bay or port (bay id or name, port0, ...), "
+        "to start a clean comparison of cables or chargers",
+    )
+    hist.add_argument("-y", "--yes", action="store_true", help="with --clear: don't ask for confirmation")
+
+    diag = sub.add_parser(
+        "diagnose", help="why is a port slower or charging less than it could? (cable, port, device, charger)"
+    )
+    diag.add_argument("port", nargs="?", help="bay id or name, or port0 ... (default: every bay)")
+    diag.add_argument("--since", metavar="WHEN", help="only use history newer than this (e.g. 1h)")
 
     svc = sub.add_parser("service", help="manage the systemd user service running the daemon")
     svc.add_argument("action", choices=("install", "uninstall", "status", "print"))
@@ -94,7 +107,12 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     if args.cmd == "history":
+        if args.clear:
+            return _history_clear(args, fs)
         return _history(args)
+
+    if args.cmd == "diagnose":
+        return _diagnose(args, fs)
 
     if args.cmd == "service":
         from . import service
@@ -217,6 +235,80 @@ def _history(args) -> int:
         else:
             mark = "⚠" if r.severity == "warning" else " "
             print(f"{r.ts.astimezone():%Y-%m-%d %H:%M:%S} {mark} {r.message}")
+    return 0
+
+
+def _history_clear(args, fs) -> int:
+    from . import diagnose
+    from .history import History
+
+    state = _state(args, fs)
+    sel = diagnose.select(state, args.clear)
+    if sel is None:
+        known = [s.label for s in diagnose.selections(state)]
+        print(f"unknown bay or port: {args.clear!r} (try one of: {', '.join(known)})", file=sys.stderr)
+        return 2
+    h = History()
+    port_bay = diagnose.port_bays(state)
+    count = sum(1 for r in h.read() if diagnose.record_matches(sel, r, port_bay))
+    if not count:
+        print(f"no history for {sel.label}")
+        return 0
+    if not args.yes:
+        if not sys.stdin.isatty():
+            print("refusing to delete without confirmation; add --yes", file=sys.stderr)
+            return 2
+        if input(f"Delete {count} event(s) of {sel.label} from {h.path}? [y/N] ").strip().lower() != "y":
+            print("nothing deleted")
+            return 1
+    removed = h.clear(lambda r: diagnose.record_matches(sel, r, port_bay))
+    print(f"deleted {removed} event(s) of {sel.label}")
+    _reload_daemon()
+    return 0
+
+
+def _reload_daemon() -> None:
+    """Best effort: the daemon re-reads its recent events, so the widgets drop the cleared ones."""
+    import contextlib
+    import subprocess
+
+    with contextlib.suppress(OSError, subprocess.SubprocessError):
+        subprocess.run(
+            ["systemctl", "--user", "reload", "usbinspect.service"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            check=False,
+        )
+
+
+def _diagnose(args, fs) -> int:
+    from . import diagnose
+    from .history import History, parse_since
+
+    state = _state(args, fs)
+    if args.port:
+        sel = diagnose.select(state, args.port)
+        if sel is None:
+            known = [s.label for s in diagnose.selections(state)]
+            print(f"unknown bay or port: {args.port!r} (try one of: {', '.join(known)})", file=sys.stderr)
+            return 2
+        sels = [sel]
+    else:
+        sels = diagnose.selections(state)
+    since = parse_since(args.since) if args.since else None
+    records = [] if args.fixture else list(History().read(since=since))
+    reports = [diagnose.diagnose(state, s, records) for s in sels]
+    if not args.port and not args.all:
+        # only bays with something to say: connected now, or with history
+        reports = [r for r in reports if r.devices or r.power or r.timeline] or reports
+    if not state.bays:
+        print("No bay map: history can't follow a physical bay. Run `usbinspect calibrate` first.\n")
+    print("\n\n".join(diagnose.render_report(r) for r in reports))
+    print(
+        "\nTo compare cables: `usbinspect history --clear <bay>`, then plug the same device in with "
+        "each cable in turn and run `usbinspect diagnose <bay>`."
+    )
     return 0
 
 

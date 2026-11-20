@@ -283,3 +283,16 @@ def test_service_unit():
     unit = service.render_unit("/home/u/.local/bin/usbinspect")
     assert "ExecStart=/home/u/.local/bin/usbinspect daemon" in unit
     assert "WantedBy=graphical-session.target" in unit
+
+
+def test_forced_refresh_rereads_recent_events_after_a_clear(env):
+    d, world, bus, clock, tmp = env
+    d.start()
+    world.hidden.add("1-2.1")
+    d.tick()
+    assert "device_removed" in [r["kind"] for r in d.recent]
+    d.history.clear(lambda r: r.kind == "device_removed")  # `usbinspect history --clear`
+    d.tick(force=True)  # what its `systemctl --user reload` triggers
+    assert "device_removed" not in [r["kind"] for r in d.recent]
+    doc = json.loads(d.state_file.read_text())
+    assert "device_removed" not in [r["kind"] for r in doc["recent_events"]]

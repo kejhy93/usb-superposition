@@ -98,6 +98,15 @@ Per USB device: bus/port path, VID:PID, manufacturer, product, class, driver,
 - The Framework 16 EC ignores the offset of UCSI's second GET_PDOS read, so PDO 5 repeats PDO 1
   (without the flag attributes the kernel shows only on PDO 1). Repeats are dropped by electrical value.
 
+- `usbinspect diagnose` compares instead of measuring: device max (BOS) vs negotiated vs upstream,
+  plus the bay's history since `history --clear`. Every event now records its `bay` (pd_* and
+  issue events too); older pd_* records are matched to a bay through their port id.
+  `pd_contract` also records the charger's best offer (`offer_w`).
+- PD sources may offer more than 3 A only after reading a 5 A e-marker, so a best offer of
+  exactly 20 V × 3 A can mean "60 W charger" or "bigger charger, 3 A cable": reported as such.
+- `History.clear()` rewrites each file under an `flock` that `append()` also takes, so the daemon
+  can't write in between. A forced tick (SIGHUP) re-reads the recent events for state.json.
+
 ## Findings from milestone 2
 
 - `physical_location` holds firmware placeholders on the Framework 16 (every Type-C port says

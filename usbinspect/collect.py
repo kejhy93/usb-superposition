@@ -711,9 +711,11 @@ def _issues(
                     )
                 )
             elif pw.watts is not None and pw.watts < low_charger_w:
-                out.append(
-                    Issue("warning", "charger_low", f"{p.id}: charger negotiated only {pw.watts:g} W", p.id)
-                )
+                from .diagnose import power_limit  # local: diagnose imports history/events
+
+                why = power_limit(p)
+                msg = f"{p.id}: charging at only {pw.watts:g} W" + (f" — {why.text}" if why else "")
+                out.append(Issue("warning", "charger_low", msg, p.id))
     return out
 
 

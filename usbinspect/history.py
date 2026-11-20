@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import re
 from collections import Counter, defaultdict
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -95,11 +97,46 @@ class History:
         self.max_bytes = max_bytes
         self.keep = keep
 
-    def append(self, rec: Record) -> None:
+    @contextmanager
+    def _locked(self):
+        """Serialise the daemon's appends with `clear()` from the CLI."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._rotate_if_needed()
-        with self.path.open("a", encoding="utf-8") as f:
-            f.write(rec.to_json() + "\n")
+        with open(self.path.with_name(self.path.name + ".lock"), "a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
+
+    def append(self, rec: Record) -> None:
+        with self._locked():
+            self._rotate_if_needed()
+            with self.path.open("a", encoding="utf-8") as f:
+                f.write(rec.to_json() + "\n")
+
+    def clear(self, drop: Callable[[Record], bool]) -> int:
+        """Remove the records `drop` selects from every file (rotated ones too).
+
+        Each file is rewritten and atomically replaced; lines that don't parse are kept.
+        Returns how many records were removed.
+        """
+        removed = 0
+        with self._locked():
+            for p in self.files():
+                kept: list[str] = []
+                with p.open(encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        try:
+                            if line.strip() and drop(Record.from_json(line)):
+                                removed += 1
+                                continue
+                        except (ValueError, KeyError):
+                            pass
+                        kept.append(line)
+                tmp = p.with_name(p.name + ".tmp")
+                tmp.write_text("".join(kept), encoding="utf-8")
+                tmp.replace(p)
+        return removed
 
     def _rotate_if_needed(self) -> None:
         try:

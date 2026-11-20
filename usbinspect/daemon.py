@@ -117,6 +117,8 @@ class Daemon:
         """
         new = self._load()
         fp = _fingerprint(new)
+        if force:  # history may have been cleared (`usbinspect history --clear`)
+            self.recent = [_recent_dict(r) for r in self.history.tail(RECENT_EVENTS, include_internal=False)]
         if fp == self._fp:
             if force:
                 self.state = new

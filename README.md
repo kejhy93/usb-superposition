@@ -52,6 +52,8 @@ usbinspect --json     # full machine-readable state
 usbinspect tui        # live interactive view
 usbinspect calibrate  # name the physical bays: plug something into each one
 usbinspect history --since 1d   # what happened (needs the daemon)
+usbinspect diagnose   # is it the cable? why a port is slower / charging less than it could
+usbinspect history --clear "Right rear"   # forget one bay's history, to compare cables
 usbinspect ports      # bay map and what's plugged into each bay
 usbinspect snapshot out.json   # record /sys for a test fixture (serials redacted)
 usbinspect --fixture out.json  # render from a recorded snapshot
@@ -177,6 +179,42 @@ plasmawindowed org.hejnaluk.usbsuperposition   # try it in a window
 It's a link rather than `kpackagetool6 -i` (which copies the package and would break the
 `Model.js` symlink). Plasma caches QML too; after editing, re-open `plasmawindowed` or restart
 `plasmashell`.
+
+## Is it the cable?
+
+Linux never says *why* a link came up at a given speed, and the Framework 16 firmware
+doesn't report cable e-markers (`GET_CABLE_PROPERTY failed` in the kernel log). So
+`usbinspect diagnose` reasons from comparisons: what the device, the bay and the charger can
+do, and what each bay has managed before, from the daemon's history.
+
+```
+Left rear [L1]
+  ⚠ USB 10/100/1000 LAN: 480 Mbps of 5 Gbps
+      this device ran at 5 Gbps in this bay on Nov 20 10:01, so bay and device are fine:
+      the cable (or a loose plug) is the likely cause
+Right rear [R1]
+  ⚡ charging 45 W (20 V × 2.25 A)
+      the charger is the limit: its best offer is 45 W
+```
+
+Verdicts for a slow device: *running at its best*, *limited by the hub or port above it*,
+*the cable* (it was faster in this bay before), *this bay or this cable* (it was faster in
+another bay), *the cable or the device* (another device was faster in this bay), or *no
+comparison yet*. For charging: *the charger is the limit*, *the laptop asked for less*, or
+*the charger or the cable* (a 20 V × 3 A offer: chargers offer more than 3 A only over a 5 A
+cable). The charging verdict is also in the low-charger warning, so the widgets show it.
+
+To compare cables, start a clean slate for the bay, then plug the same device in with each
+cable in turn:
+
+```sh
+usbinspect history --clear "Left rear"   # or the bay id (L1), or port0; asks first (-y skips)
+usbinspect diagnose "Left rear"          # after each cable: the bay's connections, fastest first
+```
+
+`--clear` deletes only that bay's events (rotated files too) and tells the daemon to reload,
+so the widgets' recent events drop them. It needs a bay map (`usbinspect calibrate`) to follow
+a physical bay; without one it works per Type-C port or kernel root port.
 
 ## Physical bays
 

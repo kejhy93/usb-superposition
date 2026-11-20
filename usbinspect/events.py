@@ -118,16 +118,29 @@ def diff(old: State | None, new: State) -> list[Event]:
                         "mv": now.voltage_mv,
                         "ma": now.current_ma,
                         "type": now.usb_type,
+                        "offer_w": p.partner.pd.max_source_w if p.partner and p.partner.pd else None,
+                        "bay": p.bay,
                     },
                 )
             )
         elif was and not now:
-            out.append(Event("pd_lost", "info", f"Charger removed from {port_label(p, new)}", p.id))
+            out.append(
+                Event(
+                    "pd_lost",
+                    "info",
+                    f"Charger removed from {port_label(p, new)}",
+                    p.id,
+                    details={"bay": p.bay},
+                )
+            )
 
     old_issues = {(i.kind, i.ref, i.message) for i in old.issues}
+    bays = {p.id: p.bay for p in new.typec_ports}
+    bays.update({d.name: d.bay for rp in new.root_ports for d in _walk(rp.devices)})
     for i in new.issues:
         if (i.kind, i.ref, i.message) not in old_issues:
-            out.append(Event(i.kind, i.severity, i.message, i.ref))
+            bay = bays.get(i.ref or "")
+            out.append(Event(i.kind, i.severity, i.message, i.ref, details={"bay": bay} if bay else {}))
     return out
 
 
