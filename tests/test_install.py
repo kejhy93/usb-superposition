@@ -169,3 +169,27 @@ def test_unknown_option(env):
     r = run(e, "--bogus", check=False)
     assert r.returncode == 2
     assert "unknown option" in r.stderr
+
+
+PLASMOID = Path(".local") / "share" / "plasma" / "plasmoids" / "org.hejnaluk.usbsuperposition"
+
+
+def test_plasma_present_links_plasmoid(env):
+    e, home, venv, calls, stubs = env
+    _stub(stubs / "plasmashell")
+    r = run(e)
+    link = home / PLASMOID
+    assert link.is_symlink() and link.resolve() == (ROOT / "plasmoid").resolve()
+    assert "Add or Manage Widgets" in r.stdout
+    assert not any(line.startswith("plasmashell") for line in lines(calls))  # never touches the shell
+    run(e, "--uninstall")
+    assert not link.exists() and not link.is_symlink()
+
+
+def test_no_plasma_or_no_plasmoid_flag_skips_plasmoid(env):
+    e, home, venv, calls, stubs = env
+    r = run(e)
+    assert "skipping the Plasma widget" in r.stdout
+    _stub(stubs / "plasmashell")
+    run(e, "--no-plasmoid")
+    assert not (home / PLASMOID).exists()

@@ -196,6 +196,7 @@ def test_model_groups_by_bay_and_hides_internal(run_model):
     ]
     # the USB 2 half of the dock hub is not a downgrade, so no "/ max" for it
     assert (rear["rows"][0]["speed"], rear["rows"][0]["maxSpeed"]) == ("480 Mbps", "")
+    assert rear["rows"][0]["ratio"] == -1  # ...and no speed bar either
     assert "USB 2 half" in rear["rows"][0]["tags"]
     assert v["chargingW"] == "75 W"
     assert v["updated"] == 1794916800000  # state timestamp, 2026-11-17 12:00 UTC
@@ -239,6 +240,7 @@ def test_model_downgrade_and_issues(run_model):
         True,
         "bad cable?",
     )
+    assert row["ratio"] == pytest.approx(480 / 5000)
     assert v["warning"] is True
     assert v["issues"] == [{"warning": True, "message": "LAN at 480 Mbps"}]
     assert v["tooltip"].endswith("· 1 warning")

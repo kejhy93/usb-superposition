@@ -1,7 +1,8 @@
 .pragma library
 
-// Pure view model for the bar widget: state.json document in, plain objects out.
-// No Qt APIs here, so tests/test_omarchy.py can run it under node. Every string
+// Pure view model shared by the Omarchy bar widget and the Plasma plasmoid
+// (plasmoid/contents/ui/Model.js is a symlink to this file): state.json document in,
+// plain objects out. No Qt APIs here, so tests/test_omarchy.py can run it under node. Every string
 // that reaches the screen comes from the daemon (descriptor strings are untrusted)
 // or from `t(key)`; QML renders all of it with Text.PlainText.
 
@@ -100,15 +101,19 @@ function deviceRow(d, depth, t) {
   for (var i = 0; i < bb.length; i++) {
     modes.push({ name: clip(bb[i].name, 24), ok: bb[i].state === "configured", state: clip(bb[i].state, 24) })
   }
+  var showsMax = maxKnown && !(usb2Half && !downgraded)
+  var sp = num(d.speed_mbps), mx = num(d.max_mbps)
   return {
     key: String(d.name || ""),
     depth: depth,
+    // negotiated / max as 0..1 for a speed bar; -1 when there's nothing to compare.
+    ratio: showsMax && sp !== null && mx > 0 ? Math.min(1, sp / mx) : -1,
     name: deviceName(d),
     ids: d.vid && d.pid ? clip(d.vid + ":" + d.pid, 16) : "",
     speed: speed,
     // "negotiated / max" only when it adds something. The USB 2 half of a hub or
     // dock always runs at 480 Mbps by design; its USB 3 companion carries the rest.
-    maxSpeed: maxKnown && num(d.max_mbps) !== num(d.speed_mbps) && !(usb2Half && !downgraded) ? speedText(d.max_mbps) : "",
+    maxSpeed: showsMax && mx !== sp ? speedText(d.max_mbps) : "",
     downgraded: downgraded,
     reason: downgraded && d.downgrade_reason ? clip(d.downgrade_reason, 120) : "",
     internal: d.internal === true,

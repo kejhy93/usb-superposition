@@ -9,8 +9,8 @@ Shows connected USB devices, USB-C ports, Power Delivery contracts and alternate
 modes on Linux. Reads only `/sys`, so it needs no root. Built for a Framework
 Laptop 16 on KDE Plasma 6, but the collector is generic.
 
-Status: **milestone 6** (collector, CLI, bay mapping, TUI, notification daemon with
-event history, Omarchy bar widget, installer). A Plasma widget comes later. See [PLAN.md](PLAN.md).
+Status: **milestone 7** (collector, CLI, bay mapping, TUI, notification daemon with
+event history, Omarchy bar widget, installer, Plasma 6 widget). See [PLAN.md](PLAN.md).
 
 ## Install
 
@@ -27,11 +27,13 @@ Everything is user-local, no root. The script:
 2. links `~/.local/bin/usbinspect` to the venv's command;
 3. installs and starts the systemd user service (`usbinspect service install`);
 4. on Omarchy, links `omarchy/` into `~/.config/omarchy/plugins/usb-superposition` and puts
-   the widget on the bar, before Bluetooth (a widget already on the bar keeps its spot).
+   the widget on the bar, before Bluetooth (a widget already on the bar keeps its spot);
+5. on KDE Plasma, links `plasmoid/` into `~/.local/share/plasma/plasmoids/` (add the widget
+   to a panel yourself, see [Plasma widget](#plasma-widget)).
 
 Re-running it is safe and is how you update after a `git pull`. Options: `--no-service`,
-`--no-widget`, `--dev` (adds pytest, ruff and build). `./install.sh --uninstall` removes
-the service, the widget and the command link. It keeps `.venv`, your config
+`--no-widget`, `--no-plasmoid`, `--dev` (adds pytest, ruff and build). `./install.sh --uninstall`
+removes the service, the widgets and the command link. It keeps `.venv`, your config
 (`~/.config/usbinspect`) and the event history (`~/.local/state/usbinspect`).
 
 Needs Python 3.11+. Without the installer, `python3 -m usbinspect` works straight from a
@@ -150,6 +152,30 @@ omarchy plugin enable usb.superposition
 
 The shell caches compiled plugin QML, so after editing the widget run `omarchy-restart-shell`.
 
+## Plasma widget
+
+`plasmoid/` is a Plasma 6 widget showing the same thing as the Omarchy widget, built
+from the same view model (`plasmoid/contents/ui/Model.js` is a symlink to `omarchy/Model.js`).
+The panel icon shows the charging wattage or the external device count, turns red on a
+warning, and middle-click re-scans. The popup adds a negotiated / max speed bar per device.
+The "Internal" switch is saved in the widget's config. It reads `state.json` with `cat` every
+10 s (every 2 s while open); the only other command it runs is the daemon reload.
+It can live on a panel or in the system tray (Hardware).
+
+`./install.sh` links the package. Then right-click the panel > *Add or Manage Widgets* >
+*USB Superposition*, or enable it under *System Tray Settings > Entries*. If it isn't
+listed yet, run `plasmashell --replace &` once. By hand:
+
+```sh
+usbinspect service install
+ln -s "$PWD/plasmoid" ~/.local/share/plasma/plasmoids/org.hejnaluk.usbsuperposition
+plasmawindowed org.hejnaluk.usbsuperposition   # try it in a window
+```
+
+It's a link rather than `kpackagetool6 -i` (which copies the package and would break the
+`Model.js` symlink). Plasma caches QML too; after editing, re-open `plasmawindowed` or restart
+`plasmashell`.
+
 ## Physical bays
 
 The kernel doesn't know which USB or USB-C port is which physical socket. On the
@@ -197,7 +223,8 @@ charger without PD, charger under 60 W, alt mode failed.
 
 The install is editable, so Python changes apply right away; restart the daemon
 (`systemctl --user restart usbinspect`) to pick them up there. `tests/test_install.py`
-runs `install.sh` against a temporary `HOME` with `systemctl`, `omarchy` and the venv stubbed.
+runs `install.sh` against a temporary `HOME` with `systemctl`, `omarchy`, `plasmashell` and the
+venv stubbed. The widgets' shared `Model.js` runs under node in `tests/test_omarchy.py`.
 
 CI (GitHub Actions) runs ruff, then pytest on Python 3.11–3.15, then builds the
 sdist and wheel. Every run also renders the recorded Framework 16 snapshot and the

@@ -1,0 +1,21 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Lukas Hejnal"
+            }
+        ],
+        "Category": "System Information",
+        "Description": "USB devices, USB-C ports, Power Delivery and negotiated vs. possible speeds, from the usbinspect daemon.",
+        "Icon": "drive-removable-media-usb",
+        "Id": "org.hejnaluk.usbsuperposition",
+        "License": "MIT",
+        "Name": "USB Superposition",
+        "Version": "0.1.0",
+        "Website": "https://github.com/kejhy93/usb-superposition"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "X-Plasma-NotificationArea": "true",
+    "X-Plasma-NotificationAreaCategory": "Hardware"
+}

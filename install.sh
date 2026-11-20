@@ -4,7 +4,8 @@
 #   2. ~/.local/bin/usbinspect -> .venv/bin/usbinspect
 #   3. the systemd user service running `usbinspect daemon`
 #   4. the Omarchy bar widget, if the Omarchy shell is present
-# Re-running is safe. `./install.sh --uninstall` undoes steps 2-4 and keeps the venv,
+#   5. the Plasma 6 widget (plasmoid), if Plasma is present
+# Re-running is safe. `./install.sh --uninstall` undoes steps 2-5 and keeps the venv,
 # your config (~/.config/usbinspect) and the event history (~/.local/state/usbinspect).
 set -euo pipefail
 
@@ -14,9 +15,11 @@ BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
 BIN_LINK="$BIN_DIR/usbinspect"
 PLUGIN_ID="usb.superposition"
 PLUGIN_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/usb-superposition"
+PLASMOID_ID="org.hejnaluk.usbsuperposition"
+PLASMOID_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/plasma/plasmoids/$PLASMOID_ID"
 PYTHON="${PYTHON:-python3}"
 
-do_service=1 do_widget=1 extras="tui,daemon" action=install
+do_service=1 do_widget=1 do_plasmoid=1 extras="tui,daemon" action=install
 
 usage() {
   cat <<EOF
@@ -24,8 +27,9 @@ Usage: ./install.sh [options]
 
   --no-service   don't install the systemd user service
   --no-widget    don't install the Omarchy bar widget
+  --no-plasmoid  don't install the Plasma 6 widget
   --dev          install the dev extras too (pytest, ruff, build)
-  --uninstall    remove the service, widget and command symlink (keeps .venv,
+  --uninstall    remove the service, widgets and command symlink (keeps .venv,
                  config and history)
   -h, --help     show this help
 EOF
@@ -35,6 +39,7 @@ while (($#)); do
   case "$1" in
     --no-service) do_service=0 ;;
     --no-widget) do_widget=0 ;;
+    --no-plasmoid) do_plasmoid=0 ;;
     --dev) extras="tui,daemon,dev" ;;
     --uninstall) action=uninstall ;;
     -h | --help) usage; exit 0 ;;
@@ -52,6 +57,7 @@ have() { command -v "$1" >/dev/null 2>&1; }
 links_to() { [[ -L $1 ]] && [[ "$(readlink -f "$1")" == "$(readlink -f "$2")" ]]; }
 
 have_systemd_user() { have systemctl && systemctl --user show-environment >/dev/null 2>&1; }
+have_plasma() { have plasmashell; }
 have_omarchy_shell() { have omarchy && have omarchy-shell && [[ -d "$(dirname "$PLUGIN_DIR")" ]]; }
 
 # Point $1 at $2, replacing an old symlink but never a real file or directory.
@@ -118,6 +124,19 @@ install_widget() {
   fi
 }
 
+# A symlink rather than `kpackagetool6 -i` (which copies): the package's Model.js is a
+# symlink into omarchy/, and a linked package picks up `git pull` like the Omarchy widget.
+install_plasmoid() {
+  if ! have_plasma; then
+    say "Plasma not found; skipping the Plasma widget"
+    return 0
+  fi
+  mkdir -p "$(dirname "$PLASMOID_DIR")"
+  link "$PLASMOID_DIR" "$REPO/plasmoid"
+  say "Plasma widget installed: right-click the panel > Add or Manage Widgets > \"USB Superposition\""
+  say "  (or enable it in System Tray Settings > Entries; restart plasmashell if it isn't listed yet)"
+}
+
 # Run "$@" up to 5 times, a second apart, quietly; succeed if any attempt does.
 retry() {
   local i
@@ -135,6 +154,10 @@ uninstall() {
     fi
     rm "$PLUGIN_DIR"
     say "removed $PLUGIN_DIR"
+  fi
+  if [[ -L $PLASMOID_DIR ]] && links_to "$PLASMOID_DIR" "$REPO/plasmoid"; then
+    rm "$PLASMOID_DIR"
+    say "removed $PLASMOID_DIR (remove the widget from your panel too)"
   fi
   if have_systemd_user && { [[ -x $BIN_LINK ]] || [[ -x $VENV/bin/usbinspect ]]; }; then
     local cmd=$BIN_LINK
@@ -157,5 +180,6 @@ install_venv
 install_command
 ((do_service)) && install_service
 ((do_widget)) && install_widget
+((do_plasmoid)) && install_plasmoid
 
 say "done. Try: usbinspect   (or: usbinspect tui, usbinspect calibrate)"

@@ -2,13 +2,13 @@
 
 Show connected USB devices, Type-C port state, and negotiated vs. possible modes
 on a Framework Laptop 16 (Wayland). Frontends: a TUI, an Omarchy shell bar widget, and
-later a KDE Plasma 6 plasmoid. Unprivileged, sysfs only.
+a KDE Plasma 6 plasmoid. Unprivileged, sysfs only.
 
 ## Decisions (from Q&A)
 
 | Topic | Decision |
 |---|---|
-| Frontends | terminal TUI + Omarchy shell bar widget; Plasma 6 plasmoid later |
+| Frontends | terminal TUI + Omarchy shell bar widget; Plasma 6 plasmoid |
 | Scope | USB data speed, Power Delivery, alt modes (DP / TBT / USB4), cable e-marker |
 | Privilege | sysfs only — no root, no `framework_tool` |
 | Internal devices | hidden by default (toggle to show) |
@@ -34,7 +34,7 @@ later a KDE Plasma 6 plasmoid. Unprivileged, sysfs only.
             │ appends events to ~/.local/state/usbinspect/events.jsonl
             ▼
    desktop widgets (QML) read state.json:
-     Omarchy bar widget (Quickshell)  ·  Plasma plasmoid (later)
+     Omarchy bar widget (Quickshell)  ·  Plasma plasmoid
 ```
 
 Why a daemon: notifications must fire even when no widget popup is open and
@@ -131,6 +131,22 @@ Per USB device: bus/port path, VID:PID, manufacturer, product, class, driver,
 - `omarchy plugin enable <id>` with a placement moves an existing widget, hence `bar put` first
   (with placement) and then `enable` without one.
 
+## Findings from milestone 7
+
+- The plasmoid reuses the Omarchy widget's `Model.js` through a relative symlink
+  (`plasmoid/contents/ui/Model.js`). KPackage follows a symlinked package directory, so
+  `install.sh` links `plasmoid/` into `~/.local/share/plasma/plasmoids/<id>` instead of
+  `kpackagetool6 -i`, which copies and would break the inner link.
+- Strings live in `Strings.js` under the same keys as `omarchy/i18n/en.json` (a test keeps the
+  Model.js ones identical). Not `i18n()`: KI18n marks templates whose `%N` are filled
+  later with `.arg()` as missing arguments.
+- Data: the `executable` DataSource runs `cat` on `state.json` through a shell, so both commands
+  (read, daemon reload) are fixed strings, and a test checks that only those reach `connectSource`.
+  A non-zero exit means "daemon not running"; a parse failure keeps the last good state.
+- `deviceRow.ratio` (negotiated / max, or -1) was added to Model.js for the speed bar; the
+  Omarchy panel ignores it.
+- `plasmawindowed <id>` runs the applet in a window, handy for testing without touching the panel.
+
 ## Findings from milestone 5
 
 - The plugin is `BarWidget.qml` (owns the `FileView`, the view model and the bar button) +
@@ -220,7 +236,7 @@ in `~/.config/omarchy/plugins/`.
 - Tests (`tests/test_omarchy.py`): manifest, every `t()` key exists in `en.json` and none
   is unused, every `Text` is PlainText, no `Process` in the QML, and the view model under node.
 
-## Plasmoid (later)
+## Plasmoid
 
 - Plasma 6 QML package `org.hejnaluk.usbsuperposition` in `plasmoid/`.
 - Compact rep: USB icon + badge (charging watts if charging, else external device count;
@@ -230,7 +246,7 @@ in `~/.config/omarchy/plugins/`.
   "Show internal" toggle.
 - Data: read `state.json` via `Plasma5Support.DataSource` executable engine
   (`cat` the file) on a 2 s timer while expanded, 10 s while collapsed.
-- Install: `kpackagetool6 -t Plasma/Applet -i plasmoid/` (user-local).
+- Install: `install.sh` symlinks `plasmoid/` into `~/.local/share/plasma/plasmoids/` (user-local).
 
 ## TUI
 
@@ -253,7 +269,7 @@ usb-superposition/
     sysfs.py  bos.py  names.py  model.py  collect.py  render.py  portmap.py
     daemon.py   notify.py  history.py  tui.py  cli.py
   omarchy/   manifest.json  BarWidget.qml  UsbPanel.qml  Model.js  i18n/en.json
-  plasmoid/  metadata.json  contents/ui/main.qml ...   (later)
+  plasmoid/  metadata.json  contents/ui/main.qml ...
   systemd/usbinspect.service
   tests/fixtures/sysfs-*/   # captured sysfs snapshots for offline tests
   install.sh                # user-local install / --uninstall
@@ -274,4 +290,4 @@ usb-superposition/
 4. ✅ Daemon + notifications + event history + systemd user unit (`usbinspect daemon|history|service|config`).
 5. ✅ Omarchy shell bar widget (`omarchy/`), reading the daemon's `state.json`.
 6. ✅ `install.sh` (venv, `~/.local/bin` link, service, Omarchy widget; `--uninstall`), README install section.
-7. Plasma 6 plasmoid (deferred; same `state.json` contract).
+7. ✅ Plasma 6 plasmoid (`plasmoid/`, shares `omarchy/Model.js`; installed by `install.sh`).
